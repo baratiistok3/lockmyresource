@@ -32,25 +32,40 @@ class CommandArgs:
     user: User
 
 
+class Core:
+    def __init__(self, user: User):
+        assert user is not no_user
+        self.user = user
+
+    def list(self) -> List[str]:
+        return ["Place for the list"]
+    
+    def lock(self, resource: Resource):
+        print(f"TODO lock {resource} for {self.user}")
+    
+    def release(self, resource: Resource):
+        print(f"TODO release {resource} from {self.user}")
+
+
 class Command(abc.ABC):
     @abc.abstractmethod
-    def execute(self, cmd_args: CommandArgs) -> int:
+    def execute(self, core: Core, cmd_args: CommandArgs) -> int:
         pass
 
 
 class ListCommand(Command):
-    def execute(self, cmd_args: CommandArgs) -> int:
-        print("Listing stuff")
+    def execute(self, core: Core, cmd_args: CommandArgs) -> int:
+        print("\n".join(core.list()))
 
 
 class LockCommand(Command):
-    def execute(self, cmd_args: CommandArgs) -> int:
-        print(f"TODO: lock {cmd_args.resource}")
+    def execute(self, core: Core, cmd_args: CommandArgs) -> int:
+        core.lock(cmd_args.resource);
 
 
 class ReleaseCommand(Command):
-    def execute(self, cmd_args: CommandArgs) -> int:
-        print(f"TODO: release {cmd_args.resource}")
+    def execute(self, core: Core, cmd_args: CommandArgs) -> int:
+        core.release(cmd_args.resource)
 
 
 def parse_args(argv: Optional[List[str]]) -> CommandArgs:
@@ -92,7 +107,8 @@ def get_current_user():
 
 def main(argv: List[str]):
     cmd_args = parse_args(argv=None)
-    cmd_args.command.execute(cmd_args)
+    core = Core(cmd_args.user)
+    cmd_args.command.execute(core, cmd_args)
 
 
 if __name__ == "__main__":
