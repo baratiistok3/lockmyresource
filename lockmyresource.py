@@ -8,14 +8,15 @@ from typing import List
 
 
 @dataclass
-class CommandArgs:
-    dbfile: Path
-    command: callable
+class Resource:
+    name: str
 
 
 @dataclass
-class Resource:
-    name: str
+class CommandArgs:
+    dbfile: Path
+    command: callable
+    resource: Resource
 
 
 class Command(abc.ABC):
@@ -49,14 +50,14 @@ def parse_args(argv) -> CommandArgs:
     parser_lock.set_defaults(command=LockCommand())
     parser_lock.add_argument("resource", type=Resource)
     parser_release = subparsers.add_parser("release", help="Release a resource")
-    parser_release.set_defaults(command=ReleaseCommand)
+    parser_release.set_defaults(command=ReleaseCommand())
     parser_release.add_argument("resource", type=Resource)
 
     args = parser.parse_args(argv)
     cmd_args = CommandArgs(
         dbfile=args.dbfile, 
         command=args.command,
-        resource=args.resource)
+        resource=args.resource if hasattr(args, "resource") else None)
     return cmd_args
 
 
