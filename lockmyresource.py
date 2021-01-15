@@ -60,7 +60,7 @@ class ListCommand(Command):
 
 class LockCommand(Command):
     def execute(self, core: Core, cmd_args: CommandArgs) -> int:
-        core.lock(cmd_args.resource);
+        core.lock(cmd_args.resource)
 
 
 class ReleaseCommand(Command):
