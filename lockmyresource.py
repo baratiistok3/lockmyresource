@@ -57,13 +57,14 @@ class Const:
 
 
 class Database:
-    def __init__(self, connection: sqlite3.Connection):
+    def __init__(self, connection: sqlite3.Connection, dbfile: Path):
         self.connection = connection
+        self.dbfile = dbfile
         self.connection.row_factory = sqlite3.Row
         self.ensure_tables()
 
     def __repr__(self):
-        return f"Database[{self.connection}]"
+        return f"Database[{self.dbfile}]"
 
     @traced
     def execute_sql(self, sql, *args):
@@ -71,7 +72,6 @@ class Database:
 
     @traced
     def ensure_tables(self):
-        logging.info(f"Initializing database in {self.connection}")
         db_version = self.get_db_version()
         if db_version is None:
             self.create_tables()
@@ -93,6 +93,7 @@ class Database:
 
     @traced
     def create_tables(self):
+        logging.info(f"Initializing database in {self.dbfile}")
         with self.connection:
             for sql in [
                 f"CREATE TABLE {Const.VERSION_TABLE} (version TEXT);",
@@ -122,13 +123,28 @@ class Database:
                     return False
                 
                 cursor = self.execute_sql(
-                    f"UPDATE {Const.LOCKS_TABLE} SET user=? WHERE resource=? AND user IS NULL;",
-                    (user.login, resource.name, )
+                    f"UPDATE {Const.LOCKS_TABLE} SET user=?, locked_at=?, comment=? WHERE resource=? AND user IS NULL;",
+                    (user.login, timestamp, comment, resource.name, )
                 )
-                print(cursor.fetchone())
             
             self.connection.commit()
             return True
+
+    def release(self, resource: Resource, user: User):
+        with self.connection:
+            cursor = self.execute_sql(f"SELECT user FROM {Const.LOCKS_TABLE} WHERE resource = ?;", (resource.name, ))
+            row = cursor.fetchone()
+            locking_user = row["user"] if row is not None else None
+            if locking_user != user.login:
+                logging.debug(f"Resource {resource.name} is locked by {locking_user}, not {user}")
+                return False
+            
+            cursor = self.execute_sql(
+                f"UPDATE {Const.LOCKS_TABLE} SET user=NULL, locked_at=NULL, comment=NULL WHERE resource=? AND user=?;",
+                (resource.name, user.login, )
+            )
+            self.connection.commit()
+            return True                
 
 
 class Core:
@@ -151,12 +167,12 @@ class Core:
         comment = "placeholder for comment"
         has_lock = self.db.lock(resource, self.user, now, comment)
         if has_lock is False:
-            logging.warning("Could not lock {resource} for {self.user}")
+            logging.warning(f"Could not lock {resource} for {self.user}")
         return has_lock
 
     @traced
     def release(self, resource: Resource):
-        print(f"TODO release {resource} from {self.user}")
+        return self.db.release(resource, self.user)
 
 
 class Command(abc.ABC):
@@ -180,7 +196,10 @@ class LockCommand(Command):
 
 class ReleaseCommand(Command):
     def execute(self, core: Core, cmd_args: CommandArgs) -> int:
-        core.release(cmd_args.resource)
+        if core.release(cmd_args.resource):
+            print(f"Released lock for {cmd_args.resource}")
+        else:
+            print(f"SORRY, could not release {cmd_args.resource}!")
 
 
 def parse_args(argv: Optional[List[str]]) -> CommandArgs:
@@ -228,7 +247,7 @@ def main(argv: List[str]):
     if cmd_args.debug is False:
         logging.getLogger().setLevel(logging.INFO)
     connection = sqlite3.connect(str(cmd_args.dbfile), isolation_level=None)
-    core = Core(cmd_args.user, Database(connection))
+    core = Core(cmd_args.user, Database(connection, cmd_args.dbfile))
     cmd_args.command.execute(core, cmd_args)
     connection.close()
 
