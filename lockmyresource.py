@@ -22,6 +22,12 @@ def traced(func):
     return inner
 
 
+class WrongDbVersionError(Exception):
+    def __init__(self, program_version: str, db_version: str):
+        self.program_version = program_version
+        self.db_version = db_version
+
+
 @dataclass
 class Resource:
     name: str
@@ -47,6 +53,7 @@ class CommandArgs:
 class Const:
     LOCKS_TABLE = "locks"
     VERSION_TABLE = "version"
+    DB_VERSION = "0"
 
 
 class Database:
@@ -57,16 +64,71 @@ class Database:
 
     def __repr__(self):
         return f"Database[{self.connection}]"
-    
+
+    @traced
+    def execute_sql(self, sql, *args):
+        return self.connection.execute(sql, *args)
+
+    @traced
     def ensure_tables(self):
         logging.info(f"Initializing database in {self.connection}")
+        db_version = self.get_db_version()
+        if db_version is None:
+            self.create_tables()
+            return
+        if db_version == Const.DB_VERSION:
+            return
+        raise WrongDbVersionError(Const.DB_VERSION, db_version)
+
+    @traced
+    def get_db_version(self):
         with self.connection:
-            cursor = self.connection.execute(f"SELECT COUNT(1) AS count FROM sqlite_master WHERE type='table' AND name='{Const.LOCKS_TABLE}'")
-            has_locks_table = cursor.fetchone()["count"] > 0
-            print(count)
+            cursor = self.execute_sql(
+                f"SELECT COUNT(1) AS count FROM sqlite_master WHERE type='table' AND name='{Const.VERSION_TABLE}'")
+            if cursor.fetchone()["count"] == 0:
+                return None
+            cursor = self.execute_sql(
+                f"SELECT MAX(version) AS version FROM {Const.VERSION_TABLE}")
+            return cursor.fetchone()["version"]
+
+    @traced
+    def create_tables(self):
+        with self.connection:
+            for sql in [
+                f"CREATE TABLE {Const.VERSION_TABLE} (version TEXT);",
+                f"INSERT INTO {Const.VERSION_TABLE} VALUES ('{Const.DB_VERSION}');",
+                f"CREATE TABLE {Const.LOCKS_TABLE} ("
+                    "resource TEXT PRIMARY KEY NOT NULL, "
+                    "user TEXT, "
+                    "locked_at TIMESTAMP, "
+                    "comment TEXT)"
+            ]:
+                self.execute_sql(sql)
+            self.connection.commit()
 
     def lock(self, resource: Resource, user: User, timestamp: datetime.datetime, comment: str):
-        pass
+        with self.connection:
+            cursor = self.execute_sql(f"SELECT user FROM {Const.LOCKS_TABLE} WHERE resource = ?;", (resource.name, ))
+            row = cursor.fetchone()
+            if row is None:
+                self.execute_sql(
+                    f"INSERT INTO {Const.LOCKS_TABLE} VALUES (?, ?, ?, ?);",
+                    (resource.name, user.login, timestamp, comment, )
+                )
+            else:
+                locking_user = row["user"]
+                if locking_user is not None:
+                    logging.debug(f"Resource {resource.name} is already locked by {locking_user}")
+                    return False
+                
+                cursor = self.execute_sql(
+                    f"UPDATE {Const.LOCKS_TABLE} SET user=? WHERE resource=? AND user IS NULL;",
+                    (user.login, resource.name, )
+                )
+                print(cursor.fetchone())
+            
+            self.connection.commit()
+            return True
 
 
 class Core:
@@ -81,14 +143,17 @@ class Core:
     @traced
     def list(self) -> List[str]:
         return ["Place for the list"]
-    
+
     @traced
     def lock(self, resource: Resource) -> bool:
-        has_lock = self.db.lock(resource, self.user)
+        now = datetime.datetime.now()
+        # TODO comment CLI arg
+        comment = "placeholder for comment"
+        has_lock = self.db.lock(resource, self.user, now, comment)
         if has_lock is False:
-            logging.warn("Could not lock {resource} for {self.user}")
+            logging.warning("Could not lock {resource} for {self.user}")
         return has_lock
-    
+
     @traced
     def release(self, resource: Resource):
         print(f"TODO release {resource} from {self.user}")
@@ -162,7 +227,7 @@ def main(argv: List[str]):
     cmd_args = parse_args(argv=None)
     if cmd_args.debug is False:
         logging.getLogger().setLevel(logging.INFO)
-    connection = sqlite3.connect(str(cmd_args.dbfile))
+    connection = sqlite3.connect(str(cmd_args.dbfile), isolation_level=None)
     core = Core(cmd_args.user, Database(connection))
     cmd_args.command.execute(core, cmd_args)
     connection.close()
