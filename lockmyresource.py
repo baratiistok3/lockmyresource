@@ -51,6 +51,8 @@ class CommandArgs:
 
 
 class Const:
+    OK = 0
+    FAILED = 1
     LOCKS_TABLE = "locks"
     VERSION_TABLE = "version"
     DB_VERSION = "0"
@@ -146,6 +148,12 @@ class Database:
             self.connection.commit()
             return True                
 
+    def list(self):
+        with self.connection:
+            cursor = self.execute_sql(f"SELECT resource, user, locked_at, comment FROM {Const.LOCKS_TABLE};")
+            many = cursor.fetchall()
+            return many
+
 
 class Core:
     def __init__(self, user: User, db: Database):
@@ -158,7 +166,10 @@ class Core:
 
     @traced
     def list(self) -> List[str]:
-        return ["Place for the list"]
+        # TODO: should return json or csv
+        def format_row(row):
+            return "{resource}\t{user}\t{locked_at}\t{comment}".format(**row)
+        return ["Resource\tUser\tLocked at\tComment"] + [format_row(row) for row in self.db.list()]
 
     @traced
     def lock(self, resource: Resource) -> bool:
@@ -184,22 +195,25 @@ class Command(abc.ABC):
 class ListCommand(Command):
     def execute(self, core: Core, cmd_args: CommandArgs) -> int:
         print("\n".join(core.list()))
+        return Const.OK
 
 
 class LockCommand(Command):
     def execute(self, core: Core, cmd_args: CommandArgs) -> int:
         if core.lock(cmd_args.resource):
             print(f"Obtained lock for {cmd_args.resource}")
-        else:
-            print(f"SORRY, could not lock {cmd_args.resource}!")
+            return Const.OK
+        print(f"SORRY, could not lock {cmd_args.resource}!")
+        return Const.FAILED
 
 
 class ReleaseCommand(Command):
     def execute(self, core: Core, cmd_args: CommandArgs) -> int:
         if core.release(cmd_args.resource):
             print(f"Released lock for {cmd_args.resource}")
-        else:
-            print(f"SORRY, could not release {cmd_args.resource}!")
+            return Const.OK
+        print(f"SORRY, could not release {cmd_args.resource}!")
+        return Const.FAILED
 
 
 def parse_args(argv: Optional[List[str]]) -> CommandArgs:
@@ -241,16 +255,19 @@ def get_current_user():
         return no_user
 
 
-def main(argv: List[str]):
+def main() -> int:
     logging.basicConfig(level=logging.DEBUG)
     cmd_args = parse_args(argv=None)
     if cmd_args.debug is False:
         logging.getLogger().setLevel(logging.INFO)
     connection = sqlite3.connect(str(cmd_args.dbfile), isolation_level=None)
     core = Core(cmd_args.user, Database(connection, cmd_args.dbfile))
-    cmd_args.command.execute(core, cmd_args)
+    exit_code = cmd_args.command.execute(core, cmd_args)
     connection.close()
+    return exit_code
 
 
 if __name__ == "__main__":
-    main(sys.argv)
+    exit_code = main()
+    if exit_code != 0:
+        sys.exit(exit_code)
