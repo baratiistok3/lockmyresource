@@ -2,6 +2,7 @@
 
 
 import abc
+import datetime
 import logging
 import os
 import sys
@@ -43,17 +44,28 @@ class CommandArgs:
     debug: bool
 
 
+class Const:
+    LOCKS_TABLE = "locks"
+    VERSION_TABLE = "version"
+
+
 class Database:
-    def __init__(self, dbfile: Path):
-        self.dbfile = dbfile
-        if dbfile.exists() is False:
-            self.create_db()
+    def __init__(self, connection: sqlite3.Connection):
+        self.connection = connection
+        self.connection.row_factory = sqlite3.Row
+        self.ensure_tables()
 
     def __repr__(self):
-        return f"Database[{self.dbfile}]"
+        return f"Database[{self.connection}]"
     
-    def create_db(self):
-        logging.info(f"Creating database {self.dbfile}")
+    def ensure_tables(self):
+        logging.info(f"Initializing database in {self.connection}")
+        with self.connection:
+            cursor = self.connection.execute(f"SELECT COUNT(1) AS count FROM sqlite_master WHERE type='table' AND name='{Const.LOCKS_TABLE}'")
+            has_locks_table = cursor.fetchone()["count"] > 0
+            print(count)
+
+    def lock(self, resource: Resource, user: User, timestamp: datetime.datetime, comment: str):
         pass
 
 
@@ -71,8 +83,11 @@ class Core:
         return ["Place for the list"]
     
     @traced
-    def lock(self, resource: Resource):
-        print(f"TODO lock {resource} for {self.user}")
+    def lock(self, resource: Resource) -> bool:
+        has_lock = self.db.lock(resource, self.user)
+        if has_lock is False:
+            logging.warn("Could not lock {resource} for {self.user}")
+        return has_lock
     
     @traced
     def release(self, resource: Resource):
@@ -92,7 +107,10 @@ class ListCommand(Command):
 
 class LockCommand(Command):
     def execute(self, core: Core, cmd_args: CommandArgs) -> int:
-        core.lock(cmd_args.resource)
+        if core.lock(cmd_args.resource):
+            print(f"Obtained lock for {cmd_args.resource}")
+        else:
+            print(f"SORRY, could not lock {cmd_args.resource}!")
 
 
 class ReleaseCommand(Command):
@@ -144,8 +162,10 @@ def main(argv: List[str]):
     cmd_args = parse_args(argv=None)
     if cmd_args.debug is False:
         logging.getLogger().setLevel(logging.INFO)
-    core = Core(cmd_args.user, Database(cmd_args.dbfile))
+    connection = sqlite3.connect(str(cmd_args.dbfile))
+    core = Core(cmd_args.user, Database(connection))
     cmd_args.command.execute(core, cmd_args)
+    connection.close()
 
 
 if __name__ == "__main__":
