@@ -2,6 +2,7 @@
 
 
 import abc
+import logging
 import os
 import sys
 import sqlite3
@@ -9,6 +10,15 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
+
+
+def traced(func):
+    def inner(*args, **kwargs):
+        logging.debug(f"{func.__name__}({args}, {kwargs})")
+        result = func(*args, **kwargs)
+        logging.debug(f"{func.__name__} returns {result}")
+        return result
+    return inner
 
 
 @dataclass
@@ -30,19 +40,41 @@ class CommandArgs:
     command: "Command"
     resource: Resource
     user: User
+    debug: bool
+
+
+class Database:
+    def __init__(self, dbfile: Path):
+        self.dbfile = dbfile
+        if dbfile.exists() is False:
+            self.create_db()
+
+    def __repr__(self):
+        return f"Database[{self.dbfile}]"
+    
+    def create_db(self):
+        logging.info(f"Creating database {self.dbfile}")
+        pass
 
 
 class Core:
-    def __init__(self, user: User):
+    def __init__(self, user: User, db: Database):
         assert user is not no_user
         self.user = user
+        self.db = db
 
+    def __repr__(self):
+        return f"Core[{self.user, self.db}]"
+
+    @traced
     def list(self) -> List[str]:
         return ["Place for the list"]
     
+    @traced
     def lock(self, resource: Resource):
         print(f"TODO lock {resource} for {self.user}")
     
+    @traced
     def release(self, resource: Resource):
         print(f"TODO release {resource} from {self.user}")
 
@@ -74,6 +106,7 @@ def parse_args(argv: Optional[List[str]]) -> CommandArgs:
                         type=Path, help="File to use as database")
     parser.add_argument("--user", default=get_current_user(),
                         type=User, help=argparse.SUPPRESS)
+    parser.add_argument("--debug", action="store_true")
 
     subparsers = parser.add_subparsers(help="Commands")
     parser_list = subparsers.add_parser("list", help="List resources")
@@ -90,6 +123,7 @@ def parse_args(argv: Optional[List[str]]) -> CommandArgs:
 
     args = parser.parse_args() if argv is None else parser.parse_args(argv)
     cmd_args = CommandArgs(
+        debug=args.debug,
         dbfile=args.dbfile,
         user=args.user,
         command=args.command,
@@ -106,8 +140,11 @@ def get_current_user():
 
 
 def main(argv: List[str]):
+    logging.basicConfig(level=logging.DEBUG)
     cmd_args = parse_args(argv=None)
-    core = Core(cmd_args.user)
+    if cmd_args.debug is False:
+        logging.getLogger().setLevel(logging.INFO)
+    core = Core(cmd_args.user, Database(cmd_args.dbfile))
     cmd_args.command.execute(core, cmd_args)
 
 
