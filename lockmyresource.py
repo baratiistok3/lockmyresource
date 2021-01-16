@@ -48,6 +48,7 @@ class CommandArgs:
     resource: Resource
     user: User
     debug: bool
+    comment: str
 
 
 class Const:
@@ -172,10 +173,8 @@ class Core:
         return ["Resource\tUser\tLocked at\tComment"] + [format_row(row) for row in self.db.list()]
 
     @traced
-    def lock(self, resource: Resource) -> bool:
+    def lock(self, resource: Resource, comment: str) -> bool:
         now = datetime.datetime.now()
-        # TODO comment CLI arg
-        comment = "placeholder for comment"
         has_lock = self.db.lock(resource, self.user, now, comment)
         if has_lock is False:
             logging.warning(f"Could not lock {resource} for {self.user}")
@@ -200,7 +199,7 @@ class ListCommand(Command):
 
 class LockCommand(Command):
     def execute(self, core: Core, cmd_args: CommandArgs) -> int:
-        if core.lock(cmd_args.resource):
+        if core.lock(cmd_args.resource, cmd_args.comment):
             print(f"Obtained lock for {cmd_args.resource}")
             return Const.OK
         print(f"SORRY, could not lock {cmd_args.resource}!")
@@ -231,6 +230,7 @@ def parse_args(argv: Optional[List[str]]) -> CommandArgs:
     parser_lock = subparsers.add_parser("lock", help="Lock a resource")
     parser_lock.set_defaults(command=LockCommand())
     parser_lock.add_argument("resource", type=Resource)
+    parser_lock.add_argument("comment", type=str)
 
     parser_release = subparsers.add_parser(
         "release", help="Release a resource")
@@ -244,6 +244,7 @@ def parse_args(argv: Optional[List[str]]) -> CommandArgs:
         user=args.user,
         command=args.command,
         resource=args.resource if hasattr(args, "resource") else None,
+        comment=args.comment if hasattr(args, "comment") else None
     )
     return cmd_args
 
