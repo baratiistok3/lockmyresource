@@ -22,6 +22,31 @@ def traced(func):
     return inner
 
 
+class TableFormatter(abc.ABC):
+    @abc.abstractmethod
+    def to_string(self, rows) -> str:
+        pass
+
+
+class TextFormatter(TableFormatter):
+    def to_string(self, rows) -> str:
+        columns = "resource user locked_at comment".split()
+        header = {key: key.capitalize() for key in columns}
+        rows.insert(0, header)
+
+        column_lengths = {
+            key: max([len(str(row[key])) for row in rows])
+            for key in rows[0].keys()
+        }
+        row_template = "{resource:%s}\t{user:%s}\t{locked_at:%s}\t{comment:%s}" % tuple(
+            (column_lengths[key]
+             for key in columns)
+        )
+
+        lines = (row_template.format(**row) for row in rows)
+        return "\n".join(lines)
+
+
 class WrongDbVersionError(Exception):
     def __init__(self, program_version: str, db_version: str):
         self.program_version = program_version
@@ -112,7 +137,8 @@ class Database:
 
     def lock(self, resource: Resource, user: User, timestamp: datetime.datetime, comment: str):
         with self.connection:
-            cursor = self.execute_sql(f"SELECT user FROM {Const.LOCKS_TABLE} WHERE resource = ?;", (resource.name, ))
+            cursor = self.execute_sql(
+                f"SELECT user FROM {Const.LOCKS_TABLE} WHERE resource = ?;", (resource.name, ))
             row = cursor.fetchone()
             if row is None:
                 self.execute_sql(
@@ -122,55 +148,57 @@ class Database:
             else:
                 locking_user = row["user"]
                 if locking_user is not None:
-                    logging.debug(f"Resource {resource.name} is already locked by {locking_user}")
+                    logging.debug(
+                        f"Resource {resource.name} is already locked by {locking_user}")
                     return False
-                
+
                 cursor = self.execute_sql(
                     f"UPDATE {Const.LOCKS_TABLE} SET user=?, locked_at=?, comment=? WHERE resource=? AND user IS NULL;",
                     (user.login, timestamp, comment, resource.name, )
                 )
-            
+
             self.connection.commit()
             return True
 
     def release(self, resource: Resource, user: User):
         with self.connection:
-            cursor = self.execute_sql(f"SELECT user FROM {Const.LOCKS_TABLE} WHERE resource = ?;", (resource.name, ))
+            cursor = self.execute_sql(
+                f"SELECT user FROM {Const.LOCKS_TABLE} WHERE resource = ?;", (resource.name, ))
             row = cursor.fetchone()
             locking_user = row["user"] if row is not None else None
             if locking_user != user.login:
-                logging.debug(f"Resource {resource.name} is locked by {locking_user}, not {user}")
+                logging.debug(
+                    f"Resource {resource.name} is locked by {locking_user}, not {user}")
                 return False
-            
+
             cursor = self.execute_sql(
                 f"UPDATE {Const.LOCKS_TABLE} SET user=NULL, locked_at=NULL, comment=NULL WHERE resource=? AND user=?;",
                 (resource.name, user.login, )
             )
             self.connection.commit()
-            return True                
+            return True
 
     def list(self):
         with self.connection:
-            cursor = self.execute_sql(f"SELECT resource, user, locked_at, comment FROM {Const.LOCKS_TABLE};")
+            cursor = self.execute_sql(
+                f"SELECT resource, user, locked_at, comment FROM {Const.LOCKS_TABLE};")
             many = cursor.fetchall()
             return many
 
 
 class Core:
-    def __init__(self, user: User, db: Database):
+    def __init__(self, user: User, db: Database, table_formatter: TableFormatter):
         assert user is not no_user
         self.user = user
         self.db = db
+        self.table_formatter = table_formatter
 
     def __repr__(self):
         return f"Core[{self.user, self.db}]"
 
     @traced
-    def list(self) -> List[str]:
-        # TODO: should return json or csv
-        def format_row(row):
-            return "{resource}\t{user}\t{locked_at}\t{comment}".format(**row)
-        return ["Resource\tUser\tLocked at\tComment"] + [format_row(row) for row in self.db.list()]
+    def list(self) -> str:
+        return self.table_formatter.to_string(self.db.list())
 
     @traced
     def lock(self, resource: Resource, comment: str) -> bool:
@@ -193,7 +221,7 @@ class Command(abc.ABC):
 
 class ListCommand(Command):
     def execute(self, core: Core, cmd_args: CommandArgs) -> int:
-        print("\n".join(core.list()))
+        print(core.list())
         return Const.OK
 
 
@@ -262,7 +290,8 @@ def main() -> int:
     if cmd_args.debug is False:
         logging.getLogger().setLevel(logging.INFO)
     connection = sqlite3.connect(str(cmd_args.dbfile), isolation_level=None)
-    core = Core(cmd_args.user, Database(connection, cmd_args.dbfile))
+    core = Core(cmd_args.user, Database(
+        connection, cmd_args.dbfile), TextFormatter())
     exit_code = cmd_args.command.execute(core, cmd_args)
     connection.close()
     return exit_code
