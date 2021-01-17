@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import json
+import logging
 import os
 import tkinter as tk
 from tkinter import simpledialog
@@ -50,8 +51,10 @@ def init_user(root) -> User:
 
 
 def main():
+    logging.basicConfig(level=logging.DEBUG)
     root = tk.Tk()
     user = init_user(root)
+    logging.info("User: %s", user)
     root.title("Lock My Resource")
     app = Application(root)
     app.mainloop()
