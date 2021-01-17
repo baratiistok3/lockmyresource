@@ -2,10 +2,7 @@
 
 
 import abc
-import csv
 import datetime
-import io
-import json
 import logging
 import os
 import sys
@@ -14,59 +11,13 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
-from lockmyresource import TableFormatter, Core, Resource, User, no_user, Database
+from lockmyresource import Core, Resource, User, no_user, Database
+from tableformatter import TableFormatter
 
 
 class Const:
     OK = 0
     FAILED = 1
-    FORMAT_TEXT = "text"
-    FORMAT_CSV = "csv"
-    FORMAT_JSON = "json"
-
-
-class TextFormatter(TableFormatter):
-    def to_string(self, rows) -> str:
-        columns = "resource user locked_at comment".split()
-        header = {key: key.capitalize() for key in columns}
-        rows.insert(0, header)
-
-        column_lengths = {
-            key: max([len(str(row[key])) for row in rows]) for key in rows[0].keys()
-        }
-
-        def format_cell(column, value):
-            template = f"{{value:{column_lengths[column]}}}"
-            return template.format(value=str(value))
-
-        def format_row(row):
-            return " ".join([format_cell(key, row[key]) for key in row.keys()])
-
-        lines = [format_row(row) for row in rows]
-
-        return "\n".join(lines)
-
-
-class CsvFormatter(TableFormatter):
-    def to_string(self, rows) -> str:
-        def csv_column(name: str) -> str:
-            return name.capitalize().replace("_", " ")
-
-        columns = "resource user locked_at comment".split()
-
-        memstr = io.StringIO("")
-        writer = csv.DictWriter(memstr, [csv_column(column) for column in columns])
-        writer.writeheader()
-        for row in rows:
-            writer.writerow({csv_column(column): row[column] for column in columns})
-
-        return memstr.getvalue()
-
-
-class JsonFormatter(TableFormatter):
-    def to_string(self, rows) -> str:
-        rows = [{key: row[key] for key in row.keys()} for row in rows]
-        return json.dumps(rows, indent=2)
 
 
 @dataclass
@@ -128,8 +79,8 @@ def parse_args(argv: Optional[List[str]]) -> CommandArgs:
     parser_list.add_argument(
         "--format",
         type=str,
-        default=Const.FORMAT_TEXT,
-        choices=[Const.FORMAT_TEXT, Const.FORMAT_CSV, Const.FORMAT_JSON],
+        default=TableFormatter.TEXT,
+        choices=[TableFormatter.TEXT, TableFormatter.CSV, TableFormatter.FORMAT_JSON],
     )
     parser_list.set_defaults(command=ListCommand())
 
@@ -150,20 +101,11 @@ def parse_args(argv: Optional[List[str]]) -> CommandArgs:
         command=args.command,
         resource=args.resource if hasattr(args, "resource") else None,
         comment=args.comment if hasattr(args, "comment") else None,
-        table_formatter=make_formatter(args.format)
+        table_formatter=TableFormatter.create(args.format)
         if hasattr(args, "format")
         else None,
     )
     return cmd_args
-
-
-def make_formatter(format: str):
-    if format == Const.FORMAT_TEXT:
-        return TextFormatter()
-    if format == Const.FORMAT_CSV:
-        return CsvFormatter()
-    if format == Const.FORMAT_JSON:
-        return JsonFormatter()
 
 
 def get_current_user():

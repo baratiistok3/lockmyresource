@@ -8,6 +8,7 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
+from tableformatter import TableFormatter
 
 
 def traced(func):
@@ -18,12 +19,6 @@ def traced(func):
         return result
 
     return inner
-
-
-class TableFormatter(abc.ABC):
-    @abc.abstractmethod
-    def to_string(self, rows) -> str:
-        pass
 
 
 class WrongDbVersionError(Exception):
