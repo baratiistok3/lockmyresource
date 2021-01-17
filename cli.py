@@ -5,6 +5,7 @@ import abc
 import csv
 import datetime
 import io
+import json
 import logging
 import os
 import sys
@@ -64,7 +65,8 @@ class CsvFormatter(TableFormatter):
 
 class JsonFormatter(TableFormatter):
     def to_string(self, rows) -> str:
-        raise NotImplementedError()
+        rows = [{key: row[key] for key in row.keys()} for row in rows]
+        return json.dumps(rows, indent=2)
 
 
 @dataclass
