@@ -1,5 +1,6 @@
 import datetime
 import logging
+import os
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,14 +22,13 @@ class WrongDbVersionError(Exception):
         self.program_version = program_version
         self.db_version = db_version
         super().__init__(
-            self,
             f"Program ({program_version}) and DB version ({db_version}) don't match!",
         )
 
 
 class InvalidUserError(Exception):
     def __init__(self, *args):
-        super().__init__(self, *args)
+        super().__init__(*args)
 
 
 @dataclass
@@ -39,6 +39,12 @@ class Resource:
 @dataclass
 class User:
     login: str
+    @staticmethod
+    def from_os() -> "User":
+        try:
+            return User(os.getlogin())
+        except OSError:
+            return no_user
 
 
 no_user = User(None)
@@ -185,7 +191,7 @@ class Database:
 
 class Core:
     def __init__(self, user: User, database: Database, table_formatter: TableFormatter):
-        if user is no_user:
+        if user is no_user or not isinstance(user, User) or not user.login:
             raise InvalidUserError()
         self.user = user
         self.database = database

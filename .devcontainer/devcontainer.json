@@ -37,6 +37,10 @@
 		"mhutchie.git-graph",
 	],
 
+	"mounts": [
+		"source=${env:HOME}/.ssh,target=/home/vscode/.ssh,type=bind",
+		"source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind",
+	],
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
 

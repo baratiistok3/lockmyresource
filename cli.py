@@ -3,7 +3,6 @@
 
 import abc
 import logging
-import os
 import sys
 import sqlite3
 import argparse
@@ -69,7 +68,7 @@ def parse_args(argv: Optional[List[str]]) -> CommandArgs:
         help="File to use as database",
     )
     parser.add_argument(
-        "--user", default=get_current_user(), type=User, help=argparse.SUPPRESS
+        "--user", default=User.from_os(), type=User, help=argparse.SUPPRESS
     )
     parser.add_argument("--debug", action="store_true")
 
@@ -105,13 +104,6 @@ def parse_args(argv: Optional[List[str]]) -> CommandArgs:
         else None,
     )
     return cmd_args
-
-
-def get_current_user():
-    try:
-        return User(os.getlogin())
-    except OSError:
-        return no_user
 
 
 def main() -> int:
