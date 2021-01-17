@@ -31,8 +31,7 @@ class TextFormatter(TableFormatter):
         rows.insert(0, header)
 
         column_lengths = {
-            key: max([len(str(row[key])) for row in rows])
-            for key in rows[0].keys()
+            key: max([len(str(row[key])) for row in rows]) for key in rows[0].keys()
         }
 
         def format_cell(column, value):
@@ -42,10 +41,7 @@ class TextFormatter(TableFormatter):
         def format_row(row):
             return " ".join([format_cell(key, row[key]) for key in row.keys()])
 
-        lines = [
-            format_row(row)
-            for row in rows
-        ]
+        lines = [format_row(row) for row in rows]
 
         return "\n".join(lines)
 
@@ -54,7 +50,7 @@ class CsvFormatter(TableFormatter):
     def to_string(self, rows) -> str:
         def csv_column(name: str) -> str:
             return name.capitalize().replace("_", " ")
-        
+
         columns = "resource user locked_at comment".split()
 
         memstr = io.StringIO("")
@@ -114,16 +110,25 @@ class ReleaseCommand(Command):
 
 def parse_args(argv: Optional[List[str]]) -> CommandArgs:
     parser = argparse.ArgumentParser(description="Lock some resources")
-    parser.add_argument("--dbfile", default=Path("lockmyresource.db"),
-                        type=Path, help="File to use as database")
-    parser.add_argument("--user", default=get_current_user(),
-                        type=User, help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--dbfile",
+        default=Path("lockmyresource.db"),
+        type=Path,
+        help="File to use as database",
+    )
+    parser.add_argument(
+        "--user", default=get_current_user(), type=User, help=argparse.SUPPRESS
+    )
     parser.add_argument("--debug", action="store_true")
 
     subparsers = parser.add_subparsers(help="Commands", required=True, dest="command")
     parser_list = subparsers.add_parser("list", help="List resources")
-    parser_list.add_argument("--format", type=str, default=Const.FORMAT_TEXT,
-                             choices=[Const.FORMAT_TEXT, Const.FORMAT_CSV, Const.FORMAT_JSON])
+    parser_list.add_argument(
+        "--format",
+        type=str,
+        default=Const.FORMAT_TEXT,
+        choices=[Const.FORMAT_TEXT, Const.FORMAT_CSV, Const.FORMAT_JSON],
+    )
     parser_list.set_defaults(command=ListCommand())
 
     parser_lock = subparsers.add_parser("lock", help="Lock a resource")
@@ -131,8 +136,7 @@ def parse_args(argv: Optional[List[str]]) -> CommandArgs:
     parser_lock.add_argument("resource", type=Resource)
     parser_lock.add_argument("comment", type=str)
 
-    parser_release = subparsers.add_parser(
-        "release", help="Release a resource")
+    parser_release = subparsers.add_parser("release", help="Release a resource")
     parser_release.set_defaults(command=ReleaseCommand())
     parser_release.add_argument("resource", type=Resource)
 
@@ -144,7 +148,9 @@ def parse_args(argv: Optional[List[str]]) -> CommandArgs:
         command=args.command,
         resource=args.resource if hasattr(args, "resource") else None,
         comment=args.comment if hasattr(args, "comment") else None,
-        table_formatter=make_formatter(args.format) if hasattr(args, "format") else None,
+        table_formatter=make_formatter(args.format)
+        if hasattr(args, "format")
+        else None,
     )
     return cmd_args
 
@@ -171,8 +177,9 @@ def main() -> int:
     if cmd_args.debug is False:
         logging.getLogger().setLevel(logging.INFO)
     connection = sqlite3.connect(str(cmd_args.dbfile), isolation_level=None)
-    core = Core(cmd_args.user, Database(
-        connection, cmd_args.dbfile), cmd_args.table_formatter)
+    core = Core(
+        cmd_args.user, Database(connection, cmd_args.dbfile), cmd_args.table_formatter
+    )
     exit_code = cmd_args.command.execute(core, cmd_args)
     connection.close()
     return exit_code
