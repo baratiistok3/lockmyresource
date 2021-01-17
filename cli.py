@@ -2,7 +2,9 @@
 
 
 import abc
+import csv
 import datetime
+import io
 import logging
 import os
 import sys
@@ -17,6 +19,9 @@ from lockmyresource import TableFormatter, Core, Resource, User, no_user, Databa
 class Const:
     OK = 0
     FAILED = 1
+    FORMAT_TEXT = "text"
+    FORMAT_CSV = "csv"
+    FORMAT_JSON = "json"
 
 
 class TextFormatter(TableFormatter):
@@ -45,6 +50,27 @@ class TextFormatter(TableFormatter):
         return "\n".join(lines)
 
 
+class CsvFormatter(TableFormatter):
+    def to_string(self, rows) -> str:
+        def csv_column(name: str) -> str:
+            return name.capitalize().replace("_", " ")
+        
+        columns = "resource user locked_at comment".split()
+
+        memstr = io.StringIO("")
+        writer = csv.DictWriter(memstr, [csv_column(column) for column in columns])
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({csv_column(column): row[column] for column in columns})
+
+        return memstr.getvalue()
+
+
+class JsonFormatter(TableFormatter):
+    def to_string(self, rows) -> str:
+        raise NotImplementedError()
+
+
 @dataclass
 class CommandArgs:
     dbfile: Path
@@ -53,6 +79,7 @@ class CommandArgs:
     user: User
     debug: bool
     comment: str
+    table_formatter: TableFormatter
 
 
 class Command(abc.ABC):
@@ -95,6 +122,8 @@ def parse_args(argv: Optional[List[str]]) -> CommandArgs:
 
     subparsers = parser.add_subparsers(help="Commands")
     parser_list = subparsers.add_parser("list", help="List resources")
+    parser_list.add_argument("--format", type=str, default=Const.FORMAT_TEXT,
+                             choices=[Const.FORMAT_TEXT, Const.FORMAT_CSV, Const.FORMAT_JSON])
     parser_list.set_defaults(command=ListCommand())
 
     parser_lock = subparsers.add_parser("lock", help="Lock a resource")
@@ -114,9 +143,19 @@ def parse_args(argv: Optional[List[str]]) -> CommandArgs:
         user=args.user,
         command=args.command,
         resource=args.resource if hasattr(args, "resource") else None,
-        comment=args.comment if hasattr(args, "comment") else None
+        comment=args.comment if hasattr(args, "comment") else None,
+        table_formatter=make_formatter(args.format) if hasattr(args, "format") else None,
     )
     return cmd_args
+
+
+def make_formatter(format: str):
+    if format == Const.FORMAT_TEXT:
+        return TextFormatter()
+    if format == Const.FORMAT_CSV:
+        return CsvFormatter()
+    if format == Const.FORMAT_JSON:
+        return JsonFormatter()
 
 
 def get_current_user():
@@ -133,7 +172,7 @@ def main() -> int:
         logging.getLogger().setLevel(logging.INFO)
     connection = sqlite3.connect(str(cmd_args.dbfile), isolation_level=None)
     core = Core(cmd_args.user, Database(
-        connection, cmd_args.dbfile), TextFormatter())
+        connection, cmd_args.dbfile), cmd_args.table_formatter)
     exit_code = cmd_args.command.execute(core, cmd_args)
     connection.close()
     return exit_code
