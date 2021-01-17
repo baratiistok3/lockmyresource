@@ -120,7 +120,7 @@ def parse_args(argv: Optional[List[str]]) -> CommandArgs:
                         type=User, help=argparse.SUPPRESS)
     parser.add_argument("--debug", action="store_true")
 
-    subparsers = parser.add_subparsers(help="Commands")
+    subparsers = parser.add_subparsers(help="Commands", required=True, dest="command")
     parser_list = subparsers.add_parser("list", help="List resources")
     parser_list.add_argument("--format", type=str, default=Const.FORMAT_TEXT,
                              choices=[Const.FORMAT_TEXT, Const.FORMAT_CSV, Const.FORMAT_JSON])

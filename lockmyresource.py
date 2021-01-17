@@ -29,6 +29,12 @@ class WrongDbVersionError(Exception):
     def __init__(self, program_version: str, db_version: str):
         self.program_version = program_version
         self.db_version = db_version
+        super().__init__(f"Program ({program_version}) and DB version ({db_version}) don't match!")
+
+
+class InvalidUserError(Exception):
+    def __init__(self, *args):
+        super().__init__(*args)
 
 
 @dataclass
@@ -154,7 +160,8 @@ class Database:
 
 class Core:
     def __init__(self, user: User, db: Database, table_formatter: TableFormatter):
-        assert user is not no_user
+        if user is no_user:
+            raise InvalidUserError()
         self.user = user
         self.db = db
         self.table_formatter = table_formatter
