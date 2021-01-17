@@ -1,21 +1,16 @@
-import abc
 import datetime
 import logging
-import os
-import sys
 import sqlite3
-import argparse
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
 from tableformatter import TableFormatter
 
 
 def traced(func):
     def inner(*args, **kwargs):
-        logging.debug(f"{func.__name__}({args}, {kwargs})")
+        logging.debug("%s(%s, %s)", func.__name__, args, kwargs)
         result = func(*args, **kwargs)
-        logging.debug(f"{func.__name__} returns {result}")
+        logging.debug("{%s} returns {%s}", func.__name__, result)
         return result
 
     return inner
@@ -26,13 +21,14 @@ class WrongDbVersionError(Exception):
         self.program_version = program_version
         self.db_version = db_version
         super().__init__(
-            f"Program ({program_version}) and DB version ({db_version}) don't match!"
+            self,
+            f"Program ({program_version}) and DB version ({db_version}) don't match!",
         )
 
 
 class InvalidUserError(Exception):
     def __init__(self, *args):
-        super().__init__(*args)
+        super().__init__(self, *args)
 
 
 @dataclass
@@ -82,7 +78,8 @@ class Database:
     def get_db_version(self):
         with self.connection:
             cursor = self.execute_sql(
-                f"SELECT COUNT(1) AS count FROM sqlite_master WHERE type='table' AND name='{Const.VERSION_TABLE}'"
+                f"SELECT COUNT(1) AS count FROM sqlite_master "
+                f"WHERE type='table' AND name='{Const.VERSION_TABLE}'"
             )
             if cursor.fetchone()["count"] == 0:
                 return None
@@ -93,7 +90,7 @@ class Database:
 
     @traced
     def create_tables(self):
-        logging.info(f"Initializing database in {self.dbfile}")
+        logging.info("Initializing database in {%s}", self.dbfile)
         with self.connection:
             for sql in [
                 f"CREATE TABLE {Const.VERSION_TABLE} (version TEXT);",
@@ -130,12 +127,15 @@ class Database:
                 locking_user = row["user"]
                 if locking_user is not None:
                     logging.debug(
-                        f"Resource {resource.name} is already locked by {locking_user}"
+                        "Resource {%s} is already locked by {%s}",
+                        resource.name,
+                        locking_user,
                     )
                     return False
 
                 cursor = self.execute_sql(
-                    f"UPDATE {Const.LOCKS_TABLE} SET user=?, locked_at=?, comment=? WHERE resource=? AND user IS NULL;",
+                    f"UPDATE {Const.LOCKS_TABLE} SET user=?, locked_at=?, comment=? "
+                    f"WHERE resource=? AND user IS NULL;",
                     (
                         user.login,
                         timestamp,
@@ -157,12 +157,15 @@ class Database:
             locking_user = row["user"] if row is not None else None
             if locking_user != user.login:
                 logging.debug(
-                    f"Resource {resource.name} is locked by {locking_user}, not {user}"
+                    "Resource {resource.name} is locked by {%s}, not {%s}",
+                    locking_user,
+                    user,
                 )
                 return False
 
             cursor = self.execute_sql(
-                f"UPDATE {Const.LOCKS_TABLE} SET user=NULL, locked_at=NULL, comment=NULL WHERE resource=? AND user=?;",
+                f"UPDATE {Const.LOCKS_TABLE} SET user=NULL, locked_at=NULL, comment=NULL "
+                f"WHERE resource=? AND user=?;",
                 (
                     resource.name,
                     user.login,
@@ -181,28 +184,28 @@ class Database:
 
 
 class Core:
-    def __init__(self, user: User, db: Database, table_formatter: TableFormatter):
+    def __init__(self, user: User, database: Database, table_formatter: TableFormatter):
         if user is no_user:
             raise InvalidUserError()
         self.user = user
-        self.db = db
+        self.database = database
         self.table_formatter = table_formatter
 
     def __repr__(self):
-        return f"Core[{self.user, self.db}]"
+        return f"Core[{self.user, self.database}]"
 
     @traced
     def list(self) -> str:
-        return self.table_formatter.to_string(self.db.list())
+        return self.table_formatter.to_string(self.database.list())
 
     @traced
     def lock(self, resource: Resource, comment: str) -> bool:
         now = datetime.datetime.now()
-        has_lock = self.db.lock(resource, self.user, now, comment)
+        has_lock = self.database.lock(resource, self.user, now, comment)
         if has_lock is False:
-            logging.warning(f"Could not lock {resource} for {self.user}")
+            logging.warning("Could not lock {%s} for {%s}", resource, self.user)
         return has_lock
 
     @traced
     def release(self, resource: Resource):
-        return self.db.release(resource, self.user)
+        return self.database.release(resource, self.user)

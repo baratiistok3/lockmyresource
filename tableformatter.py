@@ -14,13 +14,14 @@ class TableFormatter(abc.ABC):
         pass
 
     @staticmethod
-    def create(format: str):
-        if format == TableFormatter.TEXT:
+    def create(table_format: str):
+        if table_format == TableFormatter.TEXT:
             return TextFormatter()
-        if format == TableFormatter.CSV:
+        if table_format == TableFormatter.CSV:
             return CsvFormatter()
-        if format == TableFormatter.FORMAT_JSON:
+        if table_format == TableFormatter.FORMAT_JSON:
             return JsonFormatter()
+        raise KeyError(table_format)
 
 
 class TextFormatter(TableFormatter):
