@@ -6,6 +6,7 @@ import os
 import tkinter as tk
 from tkinter import simpledialog
 from pathlib import Path
+from configfile import LockMyResourceConfigFile
 from lockmyresource import User, no_user
 
 
@@ -20,33 +21,17 @@ class Application(tk.Frame):
         self.quit.pack(side=tk.BOTTOM)
 
 
-def get_configfile() -> Path:
-    userdir = os.getenv("APPDATA", None)
-    filename = "lockmyresource.json"
-    if userdir is None:
-        userdir = os.getenv("HOME", None)
-        filename = ".lockmyresource.json"
-    if userdir is None:
-        raise FileNotFoundError("Could not determine user directory")
-    configfile = Path(userdir, filename)
-    return configfile
-
-def read_config(configfile: Path) -> str:
-    if configfile.exists() is False:
-        return {}
-    return json.loads(configfile.read_text(encoding="utf-8"))
-
 def init_user(root) -> User:
     user = User.from_os()
     if user != no_user:
         return user
-    configfile = get_configfile()
-    config = read_config(configfile)
-    if "user" in config:
-        return User(config["user"])
+    configfile = LockMyResourceConfigFile()
+    config = configfile.read_config()
+    if config.user is not None:
+        return User(config.user)
     username = simpledialog.askstring("User", "Enter username:", parent=root)
-    config["user"] = username
-    configfile.write_text(json.dumps(config), encoding="utf-8")
+    config.user = username
+    configfile.write_config(config)
     return User(username)
 
 

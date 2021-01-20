@@ -9,7 +9,8 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
-from lockmyresource import Core, Resource, User, no_user, Database
+from configfile import LockMyResourceConfigFile
+from lockmyresource import Core, Resource, User, no_user, Database, InvalidUserError
 from tableformatter import TableFormatter
 
 
@@ -65,7 +66,7 @@ def parse_args(argv: Optional[List[str]]) -> CommandArgs:
         "--dbfile",
         default=Path("lockmyresource.db"),
         type=Path,
-        help="File to use as database",
+        help="Database to use",
     )
     parser.add_argument(
         "--user", default=User.from_os(), type=User, help=argparse.SUPPRESS
@@ -109,6 +110,11 @@ def parse_args(argv: Optional[List[str]]) -> CommandArgs:
 def main() -> int:
     logging.basicConfig(level=logging.DEBUG)
     cmd_args = parse_args(argv=None)
+    if cmd_args.user == no_user:
+        config = LockMyResourceConfigFile().read_config()
+        if config.user is None:
+            raise InvalidUserError()
+        cmd_args.user = User(config.user)
     if cmd_args.debug is False:
         logging.getLogger().setLevel(logging.INFO)
     connection = sqlite3.connect(str(cmd_args.dbfile), isolation_level=None)
