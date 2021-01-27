@@ -2,6 +2,7 @@ import abc
 import csv
 import io
 import json
+from typing import Dict, List
 
 
 class TableFormatter(abc.ABC):
@@ -64,5 +65,8 @@ class CsvFormatter(TableFormatter):
 
 class JsonFormatter(TableFormatter):
     def to_string(self, rows) -> str:
-        rows = [{key: row[key] for key in row.keys()} for row in rows]
-        return json.dumps(rows, indent=2)
+        return json.dumps(rows_to_dicts(rows), indent=2)
+
+
+def rows_to_dicts(rows) -> List[Dict]:
+    return [{key: row[key] for key in row.keys()} for row in rows]

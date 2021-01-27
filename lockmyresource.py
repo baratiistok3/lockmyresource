@@ -4,7 +4,8 @@ import os
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
-from tableformatter import TableFormatter
+from typing import Dict, List
+from tableformatter import TableFormatter, rows_to_dicts
 
 
 def traced(func):
@@ -203,6 +204,10 @@ class Core:
     @traced
     def list(self) -> str:
         return self.table_formatter.to_string(self.database.list())
+    
+    @traced
+    def list_raw(self) -> List[Dict]:
+        return rows_to_dicts(self.database.list())
 
     @traced
     def lock(self, resource: Resource, comment: str) -> bool:
