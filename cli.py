@@ -110,11 +110,7 @@ def parse_args(argv: Optional[List[str]]) -> CommandArgs:
 def main() -> int:
     logging.basicConfig(level=logging.DEBUG)
     cmd_args = parse_args(argv=None)
-    if cmd_args.user == no_user:
-        config = LockMyResourceConfigFile().read_config()
-        if config.user is None:
-            raise InvalidUserError()
-        cmd_args.user = User(config.user)
+    cmd_args.user = set_user_if_unset(cmd_args.user)
     if cmd_args.debug is False:
         logging.getLogger().setLevel(logging.INFO)
     connection = sqlite3.connect(str(cmd_args.dbfile), isolation_level=None)
@@ -124,6 +120,16 @@ def main() -> int:
     exit_code = cmd_args.command.execute(core, cmd_args)
     connection.close()
     return exit_code
+
+
+def set_user_if_unset(user):
+    if user != no_user:
+        return user
+    
+    config = LockMyResourceConfigFile().read_config()
+    if config.user is None:
+        raise InvalidUserError()
+    return User(config.user)
 
 
 if __name__ == "__main__":
