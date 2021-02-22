@@ -17,13 +17,15 @@ from tableformatter import JsonFormatter
 
 
 class LockRecordLockCommand:
-    def __init__(self, lock_record: LockRecord, refresh_command):
+    def __init__(self, lock_record: LockRecord, refresh_command, get_lock_comment):
         self.lock_record = lock_record
         self.text = "Lock"
         self.refresh_command = refresh_command
+        self.get_lock_comment = get_lock_comment
+
 
     def execute(self):
-        self.lock_record.lock("no comment yet")
+        self.lock_record.lock(self.get_lock_comment())
         self.refresh_command()
 
 
@@ -39,10 +41,11 @@ class LockRecordReleaseCommand:
 
 
 class LockWidget(tk.Frame):
-    def __init__(self, master, core: Core, refresh_command):
+    def __init__(self, master, core: Core, refresh_command, get_lock_comment):
         super().__init__(master)
         self.core = core
         self.refresh_command = refresh_command
+        self.get_lock_comment = get_lock_comment
         self.my_user = core.user.login
         self.cells = {}
         self.rows_count = 0
@@ -68,7 +71,7 @@ class LockWidget(tk.Frame):
             if row.user == self.core.user:
                 command = LockRecordReleaseCommand(row, self.refresh_command)
             elif row.user == no_user:
-                command = LockRecordLockCommand(row, self.refresh_command)
+                command = LockRecordLockCommand(row, self.refresh_command, self.get_lock_comment)
             
             if command is not None:
                 self.set_cell(4, y, tk.Button(self, text=command.text, command=command.execute))
@@ -86,8 +89,17 @@ class Application(tk.Frame):
         self.core = core
         self.pack()
 
-        self.locks_widget = LockWidget(self, self.core, self.refresh_command)
+        self.locks_widget = LockWidget(self, self.core, self.refresh_command, self.get_lock_comment)
         self.locks_widget.pack(side=tk.TOP)
+
+        self.lock_comment = tk.Text(self, state=tk.NORMAL, height=1)
+        # self.lock_comment.config(wrap=tk.NONE)
+        def ignore_enter(event):
+            if event.keysym == "Return":
+                return "break"
+
+        self.lock_comment.bind("<Key>", ignore_enter)
+        self.lock_comment.pack()
 
         self.status = tk.Text(self, state=tk.DISABLED, height=1)
         self.status.pack()
@@ -120,6 +132,9 @@ class Application(tk.Frame):
         self.status.delete("1.0", tk.END)
         self.status.insert(tk.END, message)
         self.status.configure(state = tk.DISABLED)
+
+    def get_lock_comment(self):
+        return self.lock_comment.get("1.0", tk.END).strip()
 
 
 class ApplicationRefresher:
