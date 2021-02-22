@@ -38,7 +38,7 @@ class Command(abc.ABC):
 
 class ListCommand(Command):
     def execute(self, core: Core, cmd_args: CommandArgs) -> int:
-        print(core.list())
+        print(core.list_str())
         return Const.OK
 
 

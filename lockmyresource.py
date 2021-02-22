@@ -190,6 +190,21 @@ class Database:
             return many
 
 
+class LockRecord:
+    def __init__(self, core: "Core", resource: Resource, user: User, locked_at: datetime.datetime, comment: str):
+        self.core = core
+        self.resource = resource
+        self.user = user
+        self.locked_at = locked_at
+        self.comment = comment
+
+    def lock(self, comment: str):
+        self.core.lock(self.resource, comment)
+
+    def release(self):
+        self.core.release(self.resource)
+
+
 class Core:
     def __init__(self, user: User, database: Database, table_formatter: TableFormatter):
         if user is no_user or not isinstance(user, User) or not user.login:
@@ -202,12 +217,17 @@ class Core:
         return f"Core[{self.user, self.database}]"
 
     @traced
-    def list(self) -> str:
+    def list_str(self) -> str:
         return self.table_formatter.to_string(self.database.list())
     
     @traced
     def list_raw(self) -> List[Dict]:
         return rows_to_dicts(self.database.list())
+
+    @traced
+    def list(self) -> List[LockRecord]:
+        return [LockRecord(self, Resource(row["resource"]), User(row["user"]), row["locked_at"], row["comment"]) 
+                for row in self.list_raw()]
 
     @traced
     def lock(self, resource: Resource, comment: str) -> bool:
