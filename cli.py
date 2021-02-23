@@ -9,7 +9,7 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
-from configfile import LockMyResourceConfigFile
+from configfile import LockMyResourceConfigFile, LockMyResourceConfig
 from lockmyresource import Core, Resource, User, no_user, Database, InvalidUserError
 from tableformatter import TableFormatter
 
@@ -60,16 +60,24 @@ class ReleaseCommand(Command):
         return Const.FAILED
 
 
-def parse_args(argv: Optional[List[str]]) -> CommandArgs:
+def parse_args(argv: Optional[List[str]], config: LockMyResourceConfig) -> CommandArgs:
+    default_user = User.from_os()
+    if default_user == no_user:
+        if config.user is None:
+            raise InvalidUserError()
+        default_user = User(config.user)
+
+    default_dbfile = Path("lockmyresource.db") if config.dbfile is None else Path(config.dbfile)
+
     parser = argparse.ArgumentParser(description="Lock some resources")
     parser.add_argument(
         "--dbfile",
-        default=Path("lockmyresource.db"),
+        default=default_dbfile,
         type=Path,
         help="Database to use",
     )
     parser.add_argument(
-        "--user", default=User.from_os(), type=User, help=argparse.SUPPRESS
+        "--user", default=default_user, type=User, help=argparse.SUPPRESS
     )
     parser.add_argument("--debug", action="store_true")
 
@@ -109,24 +117,14 @@ def parse_args(argv: Optional[List[str]]) -> CommandArgs:
 
 def main() -> int:
     logging.basicConfig(level=logging.DEBUG)
-    cmd_args = parse_args(argv=None)
-    cmd_args.user = set_user_if_unset(cmd_args.user)
+    config = LockMyResourceConfigFile().read_config()
+    cmd_args = parse_args(argv=None, config=config)
     if cmd_args.debug is False:
         logging.getLogger().setLevel(logging.INFO)
     core = Core(cmd_args.user, Database.open(cmd_args.dbfile), cmd_args.table_formatter)
     exit_code = cmd_args.command.execute(core, cmd_args)
     core.database.connection.close()
     return exit_code
-
-
-def set_user_if_unset(user):
-    if user != no_user:
-        return user
-    
-    config = LockMyResourceConfigFile().read_config()
-    if config.user is None:
-        raise InvalidUserError()
-    return User(config.user)
 
 
 if __name__ == "__main__":
