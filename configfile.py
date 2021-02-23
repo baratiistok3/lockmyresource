@@ -24,6 +24,7 @@ def get_configfile(filename_base: str) -> Path:
 @dataclass
 class LockMyResourceConfig:
     user: str
+    dbfile: str
 
 
 def dataclass_fieldnames(dataclass: type) -> List[str]:

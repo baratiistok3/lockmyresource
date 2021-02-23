@@ -13,7 +13,7 @@ from tkinter import filedialog
 from typing import List, Dict
 
 from configfile import LockMyResourceConfigFile
-from lockmyresource import User, no_user, Core, Database, Resource, LockRecord
+from lockmyresource import User, no_user, Core, Database, Resource, LockRecord, traced
 from tableformatter import JsonFormatter
 
 
@@ -150,7 +150,14 @@ class Application(tk.Frame):
             return
         self.core.set_dbfile(Path(dbfilename))
         self.refresh_command()
-        # TODO save in config
+        self.save_dbfile_config()
+
+    def save_dbfile_config(self):
+        configfile = LockMyResourceConfigFile()
+        config = configfile.read_config()
+        config.dbfile = str(self.core.database.dbfile)
+        configfile.write_config(config)
+
 
     def get_dbdir(self) -> str:
         return str(self.core.database.dbfile.parent)
@@ -176,6 +183,7 @@ def with_time(text: str) -> str:
     return f"{now} {text}"
     
 
+@traced
 def init_user(root) -> User:
     user = User.from_os()
     if user != no_user:
@@ -190,14 +198,23 @@ def init_user(root) -> User:
     return User(username)
 
 
+@traced
+def init_db(default_path: str) -> Path:
+    configfile = LockMyResourceConfigFile()
+    config = configfile.read_config()
+    if config.dbfile is None:
+        config.dbfile = default_path
+        configfile.write_config(config)
+    return Path(config.dbfile)
+
+
 def main():
     logging.basicConfig(level=logging.DEBUG)
     root = tk.Tk()
     user = init_user(root)
     logging.info("User: %s", user)
     root.title("Lock My Resource")
-    # TODO: dbfile needs to be configurable
-    dbfile = Path("lockmyresource.db")
+    dbfile = init_db("lockmyresource.db")
     core = Core(user, Database.open(dbfile), JsonFormatter())
     app = Application(root, core)
     refresher = ApplicationRefresher(app, root, 5000)
