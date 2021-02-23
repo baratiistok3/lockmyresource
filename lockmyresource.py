@@ -67,6 +67,12 @@ class Database:
     def __repr__(self):
         return f"Database[{self.dbfile}]"
 
+    @staticmethod
+    @traced
+    def open(dbfile: Path):
+        connection = sqlite3.connect(str(dbfile), isolation_level=None)
+        return Database(connection, dbfile)
+
     @traced
     def execute_sql(self, sql, *args):
         return self.connection.execute(sql, *args)
@@ -215,6 +221,11 @@ class Core:
 
     def __repr__(self):
         return f"Core[{self.user, self.database}]"
+
+    @traced
+    def set_dbfile(self, dbfile: Path):
+        self.database.connection.close()
+        self.database = Database.open(dbfile)
 
     @traced
     def list_str(self) -> str:

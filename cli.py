@@ -113,12 +113,9 @@ def main() -> int:
     cmd_args.user = set_user_if_unset(cmd_args.user)
     if cmd_args.debug is False:
         logging.getLogger().setLevel(logging.INFO)
-    connection = sqlite3.connect(str(cmd_args.dbfile), isolation_level=None)
-    core = Core(
-        cmd_args.user, Database(connection, cmd_args.dbfile), cmd_args.table_formatter
-    )
+    core = Core(cmd_args.user, Database.open(cmd_args.dbfile), cmd_args.table_formatter)
     exit_code = cmd_args.command.execute(core, cmd_args)
-    connection.close()
+    core.database.connection.close()
     return exit_code
 
 

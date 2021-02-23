@@ -9,6 +9,7 @@ import tkinter as tk
 from dataclasses import dataclass
 from pathlib import Path
 from tkinter import simpledialog
+from tkinter import filedialog
 from typing import List, Dict
 
 from configfile import LockMyResourceConfigFile
@@ -55,10 +56,9 @@ class LockWidget(tk.Frame):
             head.grid(row=0, column=x, sticky="NEWS")
 
     def update(self, locks: List[LockRecord]):
-        to_remove = [(x, y) for (x, y) in self.cells.keys() if y > len(locks)]
-        for xy in to_remove:
-            self.cells[xy].grid_forget()
-            del self.cells[xy]
+        for y in range(self.rows_count):
+            for grid_cell in self.grid_slaves(row=1 + y):
+                grid_cell.grid_forget()
 
         for y, row in enumerate(locks):
             y += 1
@@ -80,7 +80,6 @@ class LockWidget(tk.Frame):
 
     def set_cell(self, x: int, y: int, cell: tk.BaseWidget):
         cell.grid(row=y, column=x, sticky="NEWS")
-        self.cells[(x, y)] = cell
 
 
 class Application(tk.Frame):
@@ -106,6 +105,9 @@ class Application(tk.Frame):
 
         self.buttons = tk.Frame()
         self.buttons.pack()
+
+        self.open_db = tk.Button(self.buttons, text="Open DB", command=self.open_db_command)
+        self.open_db.pack(side=tk.LEFT)
 
         self.quit = tk.Button(self.buttons, text="Quit", command=self.master.destroy)
         self.quit.pack(side=tk.LEFT)
@@ -135,6 +137,26 @@ class Application(tk.Frame):
 
     def get_lock_comment(self):
         return self.lock_comment.get("1.0", tk.END).strip()
+
+    def open_db_command(self):
+        dbfilename = filedialog.askopenfilename(
+            parent=self,
+            title="Choose DB file",
+            initialdir=self.get_dbdir(),
+            initialfile=self.get_dbfile(),
+            filetypes=[(".DB file", "*.db")]
+            )
+        if not dbfilename:
+            return
+        self.core.set_dbfile(Path(dbfilename))
+        self.refresh_command()
+        # TODO save in config
+
+    def get_dbdir(self) -> str:
+        return str(self.core.database.dbfile.parent)
+    
+    def get_dbfile(self) -> str:
+        return str(self.core.database.dbfile.name)
 
 
 class ApplicationRefresher:
@@ -176,13 +198,12 @@ def main():
     root.title("Lock My Resource")
     # TODO: dbfile needs to be configurable
     dbfile = Path("lockmyresource.db")
-    connection = sqlite3.connect(str(dbfile), isolation_level=None)
-    core = Core(user, Database(connection, dbfile), JsonFormatter())
+    core = Core(user, Database.open(dbfile), JsonFormatter())
     app = Application(root, core)
     refresher = ApplicationRefresher(app, root, 5000)
     root.after(500, refresher.refresh)
     app.mainloop()
-    connection.close()
+    core.database.connection.close()
 
 
 if __name__ == "__main__":
