@@ -5,17 +5,8 @@ import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List
+from util import traced
 from tableformatter import TableFormatter, rows_to_dicts
-
-
-def traced(func):
-    def inner(*args, **kwargs):
-        logging.debug("%s(%s, %s)", func.__name__, args, kwargs)
-        result = func(*args, **kwargs)
-        logging.debug("{%s} returns {%s}", func.__name__, result)
-        return result
-
-    return inner
 
 
 class WrongDbVersionError(Exception):

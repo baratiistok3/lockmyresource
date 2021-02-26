@@ -13,7 +13,8 @@ from tkinter import filedialog
 from typing import List, Dict, Optional
 
 from configfile import LockMyResourceConfigFile
-from lockmyresource import User, no_user, Core, Database, Resource, LockRecord, traced
+from lockmyresource import User, no_user, Core, Database, Resource, LockRecord
+from util import traced
 from tableformatter import JsonFormatter
 
 
@@ -29,7 +30,6 @@ class LockRecordLockCommand:
         success = self.lock_record.lock(self.get_lock_comment())
         resource = self.lock_record.resource.name
         message = f"Lock acquired on {resource}" if success else f"Couldn't lock {resource}"
-        logging.debug(message)
         self.refresh_command(message)
 
 
@@ -43,7 +43,6 @@ class LockRecordReleaseCommand:
         success = self.lock_record.release()
         resource = self.lock_record.resource.name
         message = f"Lock released on {resource}" if success else f"Couldn't release {resource}"
-        logging.debug(message)
         self.refresh_command(message)
 
 
