@@ -91,17 +91,25 @@ class Application(tk.Frame):
         self.locks_widget = LockWidget(self, self.core, self.refresh_command, self.get_lock_comment)
         self.locks_widget.pack(side=tk.TOP)
 
-        self.lock_comment = tk.Text(self, state=tk.NORMAL, height=1)
-        # self.lock_comment.config(wrap=tk.NONE)
+        self.text_panel = tk.Frame(self)
+        self.text_panel.pack()
+
+        self.lock_comment_label = tk.Label(self.text_panel, text="Lock comment ")
+        self.lock_comment_label.grid(row=0, column=0, sticky="W")
+
+        self.lock_comment = tk.Text(self.text_panel, state=tk.NORMAL, height=1, width=52)
         def ignore_enter(event):
             if event.keysym == "Return":
                 return "break"
 
         self.lock_comment.bind("<Key>", ignore_enter)
-        self.lock_comment.pack()
+        self.lock_comment.grid(row=0, column=1, sticky="NEWS")
 
-        self.status = tk.Text(self, state=tk.DISABLED, height=1)
-        self.status.pack()
+        self.status_label = tk.Label(self.text_panel, text="Status ")
+        self.status_label.grid(row=1, column=0, sticky="W")
+
+        self.status = tk.Text(self.text_panel, state=tk.DISABLED, height=1, width=1)
+        self.status.grid(row=1, column=1, sticky="NEWS")
 
         self.buttons = tk.Frame()
         self.buttons.pack()
