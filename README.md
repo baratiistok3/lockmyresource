@@ -3,7 +3,7 @@ Coordinate locking resources for humans and machines, using a simple sqlite DB
 
 There is a CLI for machines and admins and a minimal tk GUI for lock&release.
 
-## TODO need a gif here
+## Quick demo
 ![Demo of UI and CLI](demo.gif)
 
 ## Usage
