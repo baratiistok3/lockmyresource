@@ -67,7 +67,8 @@ def parse_args(argv: Optional[List[str]], config: LockMyResourceConfig) -> Comma
             raise InvalidUserError()
         default_user = User(config.user)
 
-    default_dbfile = Path("lockmyresource.db") if config.dbfile is None else Path(config.dbfile)
+    dbfile = "lockmyresource.db" if config.dbfile is None else config.dbfile
+    default_dbfile = Path(dbfile)
 
     parser = argparse.ArgumentParser(description="Lock some resources")
     parser.add_argument(
