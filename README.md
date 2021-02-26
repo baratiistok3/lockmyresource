@@ -26,6 +26,8 @@ optional arguments:
 
 > **NOTE** that the current user's username will be used for all operations.
 
+> **NOTE** the db will be created if it does not yet exist
+
 ### List resources
 ```
 usage: cli.py list [-h] [--format {text,csv,json}]
@@ -46,6 +48,7 @@ usage: cli.py lock [-h] resource comment
 ```
 
 >**NOTE** that the comment is mandatory.
+
 >**NOTE** that deletion of resources is not yet implemented, you need to manipulate the sqlite DB manually for now
 
 #### Example
@@ -59,7 +62,7 @@ Obtained lock for Resource(name='fork1')
 usage: cli.py release [-h] resource
 ```
 
->> **NOTE** That only the locking user can release a lock.
+> **NOTE** That only the locking user can release a lock.
 
 #### Example
 ```
