@@ -160,7 +160,7 @@ class Database:
             self.connection.commit()
             return True
 
-    def release(self, resource: Resource, user: User):
+    def release(self, resource: Resource, user: User) -> bool:
         with self.connection:
             cursor = self.execute_sql(
                 f"SELECT user FROM {Const.LOCKS_TABLE} WHERE resource = ?;",
@@ -204,11 +204,11 @@ class LockRecord:
         self.locked_at = locked_at
         self.comment = comment
 
-    def lock(self, comment: str):
-        self.core.lock(self.resource, comment)
+    def lock(self, comment: str) -> bool:
+        return self.core.lock(self.resource, comment)
 
-    def release(self):
-        self.core.release(self.resource)
+    def release(self) -> bool:
+        return self.core.release(self.resource)
 
 
 class Core:
@@ -249,5 +249,5 @@ class Core:
         return has_lock
 
     @traced
-    def release(self, resource: Resource):
+    def release(self, resource: Resource) -> bool:
         return self.database.release(resource, self.user)

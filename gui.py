@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from tkinter import simpledialog
 from tkinter import filedialog
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 from configfile import LockMyResourceConfigFile
 from lockmyresource import User, no_user, Core, Database, Resource, LockRecord, traced
@@ -26,8 +26,11 @@ class LockRecordLockCommand:
 
 
     def execute(self):
-        self.lock_record.lock(self.get_lock_comment())
-        self.refresh_command()
+        success = self.lock_record.lock(self.get_lock_comment())
+        resource = self.lock_record.resource.name
+        message = f"Lock acquired on {resource}" if success else f"Couldn't lock {resource}"
+        logging.debug(message)
+        self.refresh_command(message)
 
 
 class LockRecordReleaseCommand:
@@ -37,8 +40,11 @@ class LockRecordReleaseCommand:
         self.refresh_command = refresh_command
     
     def execute(self):
-        self.lock_record.release()
-        self.refresh_command()
+        success = self.lock_record.release()
+        resource = self.lock_record.resource.name
+        message = f"Lock released on {resource}" if success else f"Couldn't release {resource}"
+        logging.debug(message)
+        self.refresh_command(message)
 
 
 class LockWidget(tk.Frame):
@@ -97,7 +103,7 @@ class Application(tk.Frame):
         self.lock_comment_label = tk.Label(self.text_panel, text="Lock comment ")
         self.lock_comment_label.grid(row=0, column=0, sticky="W")
 
-        self.lock_comment = tk.Text(self.text_panel, state=tk.NORMAL, height=1, width=52)
+        self.lock_comment = tk.Text(self.text_panel, state=tk.NORMAL, height=1)
         def ignore_enter(event):
             if event.keysym == "Return":
                 return "break"
@@ -108,7 +114,7 @@ class Application(tk.Frame):
         self.status_label = tk.Label(self.text_panel, text="Status ")
         self.status_label.grid(row=1, column=0, sticky="W")
 
-        self.status = tk.Text(self.text_panel, state=tk.DISABLED, height=1, width=1)
+        self.status = tk.Text(self.text_panel, state=tk.DISABLED, height=1)
         self.status.grid(row=1, column=1, sticky="NEWS")
 
         self.buttons = tk.Frame()
@@ -123,11 +129,12 @@ class Application(tk.Frame):
         self.refresh = tk.Button(self.buttons, text = "Refresh", command=self.refresh_command)
         self.refresh.pack(side=tk.LEFT)
 
-        self.refresh_command()
+        self.refresh_command("Table initialized")
 
-    def refresh_command(self):
+    def refresh_command(self, message: Optional[str] = "List updated"):
         self.locks_widget.update(self.core.list())
-        self.show_message("List updated")
+        if message is not None:
+            self.show_message(message)
 
     def show_message(self, message):
         if isinstance(message, list):
@@ -157,7 +164,7 @@ class Application(tk.Frame):
         if not dbfilename:
             return
         self.core.set_dbfile(Path(dbfilename))
-        self.refresh_command()
+        self.refresh_command(f"Opened {dbfilename}")
         self.save_dbfile_config()
 
     def save_dbfile_config(self):
@@ -181,7 +188,7 @@ class ApplicationRefresher:
         self.refresh_interval_millis = refresh_interval_millis
     
     def refresh(self):
-        self.app.refresh_command()
+        self.app.refresh_command(message=None)
         self.root.after(self.refresh_interval_millis, self.refresh)
 
 
