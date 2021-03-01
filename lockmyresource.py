@@ -4,7 +4,7 @@ import os
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 from util import traced
 from tableformatter import TableFormatter, rows_to_dicts
 
@@ -48,11 +48,31 @@ class Const:
     DB_VERSION = "0"
 
 
+class ConnectionContextManager:
+    def __init__(self, connection: Optional[sqlite3.Connection], dbfile: Path):
+        self.is_my_connection = False
+        if connection is None:
+            connection = sqlite3.connect(str(dbfile), isolation_level=None)
+            self.is_my_connection = True
+        connection.row_factory = sqlite3.Row
+        self.connection = connection
+    
+    def __enter__(self) -> "ConnectionContextManager":
+        return self
+
+    def __exit__(self, type, value, traceback):
+        if self.is_my_connection is True:
+            self.connection.close()
+
+    @traced
+    def execute_sql(self, sql, *args):
+        return self.connection.execute(sql, *args)
+
+
 class Database:
-    def __init__(self, connection: sqlite3.Connection, dbfile: Path):
+    def __init__(self, connection: Optional[sqlite3.Connection], dbfile: Path):
         self.connection = connection
         self.dbfile = dbfile
-        self.connection.row_factory = sqlite3.Row
         self.ensure_tables()
 
     def __repr__(self):
@@ -61,12 +81,24 @@ class Database:
     @staticmethod
     @traced
     def open(dbfile: Path):
+        return Database(None, dbfile)
+
+    @staticmethod
+    @traced
+    def keep_open(dbfile: Path):
         connection = sqlite3.connect(str(dbfile), isolation_level=None)
         return Database(connection, dbfile)
 
     @traced
-    def execute_sql(self, sql, *args):
-        return self.connection.execute(sql, *args)
+    def get_connection(self) -> ConnectionContextManager:
+        return ConnectionContextManager(self.connection, self.dbfile)
+
+    @traced
+    def set_dbfile(self, dbfile: Path):
+        if self.connection is not None:
+            self.connection.close()
+            self.connection = sqlite3.connect(str(dbfile), isolation_level=None)
+        self.dbfile = dbfile
 
     @traced
     def ensure_tables(self):
@@ -80,14 +112,14 @@ class Database:
 
     @traced
     def get_db_version(self):
-        with self.connection:
-            cursor = self.execute_sql(
+        with self.get_connection() as conn:
+            cursor = conn.execute_sql(
                 f"SELECT COUNT(1) AS count FROM sqlite_master "
                 f"WHERE type='table' AND name='{Const.VERSION_TABLE}'"
             )
             if cursor.fetchone()["count"] == 0:
                 return None
-            cursor = self.execute_sql(
+            cursor = conn.execute_sql(
                 f"SELECT MAX(version) AS version FROM {Const.VERSION_TABLE}"
             )
             return cursor.fetchone()["version"]
@@ -95,7 +127,7 @@ class Database:
     @traced
     def create_tables(self):
         logging.info("Initializing database in {%s}", self.dbfile)
-        with self.connection:
+        with self.get_connection() as conn:
             for sql in [
                 f"CREATE TABLE {Const.VERSION_TABLE} (version TEXT);",
                 f"INSERT INTO {Const.VERSION_TABLE} VALUES ('{Const.DB_VERSION}');",
@@ -105,20 +137,20 @@ class Database:
                 "locked_at TIMESTAMP, "
                 "comment TEXT)",
             ]:
-                self.execute_sql(sql)
-            self.connection.commit()
+                conn.execute_sql(sql)
+            conn.connection.commit()
 
     def lock(
         self, resource: Resource, user: User, timestamp: datetime.datetime, comment: str
     ):
-        with self.connection:
-            cursor = self.execute_sql(
+        with self.get_connection() as conn:
+            cursor = conn.execute_sql(
                 f"SELECT user FROM {Const.LOCKS_TABLE} WHERE resource = ?;",
                 (resource.name,),
             )
             row = cursor.fetchone()
             if row is None:
-                self.execute_sql(
+                conn.execute_sql(
                     f"INSERT INTO {Const.LOCKS_TABLE} VALUES (?, ?, ?, ?);",
                     (
                         resource.name,
@@ -137,7 +169,7 @@ class Database:
                     )
                     return False
 
-                cursor = self.execute_sql(
+                cursor = conn.execute_sql(
                     f"UPDATE {Const.LOCKS_TABLE} SET user=?, locked_at=?, comment=? "
                     f"WHERE resource=? AND user IS NULL;",
                     (
@@ -148,12 +180,12 @@ class Database:
                     ),
                 )
 
-            self.connection.commit()
+            conn.connection.commit()
             return True
 
     def release(self, resource: Resource, user: User) -> bool:
-        with self.connection:
-            cursor = self.execute_sql(
+        with self.get_connection() as conn:
+            cursor = conn.execute_sql(
                 f"SELECT user FROM {Const.LOCKS_TABLE} WHERE resource = ?;",
                 (resource.name,),
             )
@@ -167,7 +199,7 @@ class Database:
                 )
                 return False
 
-            cursor = self.execute_sql(
+            cursor = conn.execute_sql(
                 f"UPDATE {Const.LOCKS_TABLE} SET user=NULL, locked_at=NULL, comment=NULL "
                 f"WHERE resource=? AND user=?;",
                 (
@@ -175,12 +207,12 @@ class Database:
                     user.login,
                 ),
             )
-            self.connection.commit()
+            conn.connection.commit()
             return True
 
     def list(self):
-        with self.connection:
-            cursor = self.execute_sql(
+        with self.get_connection() as conn:
+            cursor = conn.execute_sql(
                 f"SELECT resource, user, locked_at, comment FROM {Const.LOCKS_TABLE};"
             )
             many = cursor.fetchall()
@@ -212,11 +244,6 @@ class Core:
 
     def __repr__(self):
         return f"Core[{self.user, self.database}]"
-
-    @traced
-    def set_dbfile(self, dbfile: Path):
-        self.database.connection.close()
-        self.database = Database.open(dbfile)
 
     @traced
     def list_str(self) -> str:

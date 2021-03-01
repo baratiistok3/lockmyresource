@@ -122,7 +122,7 @@ def main() -> int:
     cmd_args = parse_args(argv=None, config=config)
     if cmd_args.debug is False:
         logging.getLogger().setLevel(logging.INFO)
-    core = Core(cmd_args.user, Database.open(cmd_args.dbfile), cmd_args.table_formatter)
+    core = Core(cmd_args.user, Database.keep_open(cmd_args.dbfile), cmd_args.table_formatter)
     exit_code = cmd_args.command.execute(core, cmd_args)
     core.database.connection.close()
     return exit_code

@@ -162,7 +162,7 @@ class Application(tk.Frame):
             )
         if not dbfilename:
             return
-        self.core.set_dbfile(Path(dbfilename))
+        self.core.database.set_dbfile(Path(dbfilename))
         self.refresh_command(f"Opened {dbfilename}")
         self.save_dbfile_config()
 
@@ -234,7 +234,6 @@ def main():
     refresher = ApplicationRefresher(app, root, 5000)
     root.after(500, refresher.refresh)
     app.mainloop()
-    core.database.connection.close()
 
 
 if __name__ == "__main__":
