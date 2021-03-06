@@ -10,6 +10,9 @@ from util import traced
 from tableformatter import TableFormatter, rows_to_dicts
 
 
+github_url = "https://github.com/szabopeter/lockmyresource"
+
+
 class WrongDbVersionError(Exception):
     def __init__(self, program_version: str, db_version: str):
         self.program_version = program_version

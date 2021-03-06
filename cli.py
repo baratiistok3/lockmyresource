@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 from configfile import LockMyResourceConfigFile, LockMyResourceConfig
-from lockmyresource import Core, Resource, User, no_user, Database, InvalidUserError
+from lockmyresource import Core, Resource, User, no_user, Database, InvalidUserError, github_url
 from tableformatter import TableFormatter
 
 
@@ -70,7 +70,9 @@ def parse_args(argv: Optional[List[str]], config: LockMyResourceConfig) -> Comma
     dbfile = "lockmyresource.db" if config.dbfile is None else config.dbfile
     default_dbfile = Path(dbfile)
 
-    parser = argparse.ArgumentParser(description="Lock some resources")
+    parser = argparse.ArgumentParser(
+        description="Coordinate locking resources for humans and machines using a simple sqlite file",
+        epilog=f"Found a bug or need a feature? {github_url}")
     parser.add_argument(
         "--dbfile",
         default=default_dbfile,

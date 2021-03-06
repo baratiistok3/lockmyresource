@@ -6,6 +6,7 @@ import logging
 import os
 import sqlite3
 import tkinter as tk
+import webbrowser
 from dataclasses import dataclass
 from pathlib import Path
 from tkinter import simpledialog
@@ -13,9 +14,12 @@ from tkinter import filedialog
 from typing import List, Dict, Optional
 
 from configfile import LockMyResourceConfigFile
-from lockmyresource import User, no_user, Core, Database, Resource, LockRecord
+from lockmyresource import User, no_user, Core, Database, Resource, LockRecord, github_url
 from util import traced
 from tableformatter import JsonFormatter
+
+
+github_logo_filename = "github25.png"
 
 
 class LockRecordLockCommand:
@@ -119,14 +123,19 @@ class Application(tk.Frame):
         self.buttons = tk.Frame()
         self.buttons.pack()
 
+        self._github_logo = tk.PhotoImage(file=Path(__file__).parent / github_logo_filename)
+        self.github = tk.Button(self.buttons, text="GitHub", image=self._github_logo, compound=tk.LEFT,
+                                command=self.github_command)
+        self.github.pack(side=tk.LEFT, fill=tk.Y)
+
         self.open_db = tk.Button(self.buttons, text="Open DB", command=self.open_db_command)
-        self.open_db.pack(side=tk.LEFT)
+        self.open_db.pack(side=tk.LEFT, fill=tk.Y)
 
         self.quit = tk.Button(self.buttons, text="Quit", command=self.master.destroy)
-        self.quit.pack(side=tk.LEFT)
+        self.quit.pack(side=tk.LEFT, fill=tk.Y)
 
         self.refresh = tk.Button(self.buttons, text = "Refresh", command=self.refresh_command)
-        self.refresh.pack(side=tk.LEFT)
+        self.refresh.pack(side=tk.LEFT, fill=tk.Y)
 
         self.refresh_command(self.core.database.info())
 
@@ -173,6 +182,10 @@ class Application(tk.Frame):
         config = configfile.read_config()
         config.dbfile = str(self.core.database.dbfile)
         configfile.write_config(config)
+
+    def github_command(self):
+        self.show_message(f"Opening {github_url} in a browser")
+        webbrowser.open(github_url)
 
 
 class ApplicationRefresher:
