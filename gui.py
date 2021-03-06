@@ -128,7 +128,7 @@ class Application(tk.Frame):
         self.refresh = tk.Button(self.buttons, text = "Refresh", command=self.refresh_command)
         self.refresh.pack(side=tk.LEFT)
 
-        self.refresh_command("Table initialized")
+        self.refresh_command(self.core.database.info())
 
     def refresh_command(self, message: Optional[str] = "List updated"):
         self.locks_widget.update(self.core.list())
@@ -156,28 +156,23 @@ class Application(tk.Frame):
         dbfilename = filedialog.askopenfilename(
             parent=self,
             title="Choose DB file",
-            initialdir=self.get_dbdir(),
-            initialfile=self.get_dbfile(),
+            initialdir=self.core.database.get_dbdir(),
+            initialfile=self.core.database.get_dbfile(),
             filetypes=[(".DB file", "*.db")]
             )
         if not dbfilename:
             return
-        self.core.database.set_dbfile(Path(dbfilename))
-        self.refresh_command(f"Opened {dbfilename}")
-        self.save_dbfile_config()
+        database = Database.open(Path(dbfilename))
+        self.core.switch_database(database)
+        self.refresh_command(self.core.database.info())
+        if isinstance(database, Database):
+            self.save_dbfile_config()
 
     def save_dbfile_config(self):
         configfile = LockMyResourceConfigFile()
         config = configfile.read_config()
         config.dbfile = str(self.core.database.dbfile)
         configfile.write_config(config)
-
-
-    def get_dbdir(self) -> str:
-        return str(self.core.database.dbfile.parent)
-    
-    def get_dbfile(self) -> str:
-        return str(self.core.database.dbfile.name)
 
 
 class ApplicationRefresher:

@@ -2,6 +2,7 @@ import datetime
 import logging
 import os
 import sqlite3
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -69,8 +70,40 @@ class ConnectionContextManager:
         return self.connection.execute(sql, *args)
 
 
-class Database:
+class IDatabase(ABC):
+    def __init__(self, dbfile: Path):
+        self.dbfile = dbfile
+
+    def get_dbdir(self) -> str:
+        return str(self.dbfile.parent)
+    
+    def get_dbfile(self) -> str:
+        return str(self.dbfile.name)
+
+    @abstractmethod
+    def list(self):
+        pass
+
+    @abstractmethod
+    def info(self) -> str:
+        pass
+
+
+class NoDatabase(IDatabase):
+    def __init__(self, dbfile: Path):
+        super().__init__(dbfile)
+        self.dbfile = dbfile
+
+    def list(self):
+        return []
+
+    def info(self) -> str:
+        return f"Could not open {self.dbfile}"
+
+
+class Database(IDatabase):
     def __init__(self, connection: Optional[sqlite3.Connection], dbfile: Path):
+        super().__init__(dbfile)
         self.connection = connection
         self.dbfile = dbfile
         self.ensure_tables()
@@ -81,13 +114,20 @@ class Database:
     @staticmethod
     @traced
     def open(dbfile: Path):
-        return Database(None, dbfile)
+        try:
+            return Database(None, dbfile)
+        except sqlite3.OperationalError:
+            logging.exception(f"Could not open {dbfile}")
+            return NoDatabase(dbfile)
 
     @staticmethod
     @traced
     def keep_open(dbfile: Path):
         connection = sqlite3.connect(str(dbfile), isolation_level=None)
         return Database(connection, dbfile)
+
+    def info(self) -> str:
+        return f"Opened {self.dbfile}"
 
     @traced
     def get_connection(self) -> ConnectionContextManager:
@@ -235,7 +275,7 @@ class LockRecord:
 
 
 class Core:
-    def __init__(self, user: User, database: Database, table_formatter: TableFormatter):
+    def __init__(self, user: User, database: IDatabase, table_formatter: TableFormatter):
         if user is no_user or not isinstance(user, User) or not user.login:
             raise InvalidUserError()
         self.user = user
@@ -244,6 +284,10 @@ class Core:
 
     def __repr__(self):
         return f"Core[{self.user, self.database}]"
+
+    @traced
+    def switch_database(self, database: IDatabase):
+        self.database = database
 
     @traced
     def list_str(self) -> str:
@@ -261,7 +305,12 @@ class Core:
     @traced
     def lock(self, resource: Resource, comment: str) -> bool:
         now = datetime.datetime.now()
-        has_lock = self.database.lock(resource, self.user, now, comment)
+        has_lock = False
+        try:
+            has_lock = self.database.lock(resource, self.user, now, comment)
+        except sqlite3.OperationalError:
+            logging.exception("sqlite exception while locking")
+            return has_lock
         if has_lock is False:
             logging.warning("Could not lock {%s} for {%s}", resource, self.user)
         return has_lock
