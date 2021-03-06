@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import sqlite3
+import sys
 import tkinter as tk
 import webbrowser
 from dataclasses import dataclass
@@ -222,6 +223,8 @@ def init_user(root) -> User:
 
 @traced
 def init_db(default_path: str) -> Path:
+    if len(sys.argv) > 1:
+        return Path(sys.argv[1])
     configfile = LockMyResourceConfigFile()
     config = configfile.read_config()
     if config.dbfile is None:
