@@ -16,7 +16,7 @@ from typing import List, Dict, Optional
 
 from configfile import LockMyResourceConfigFile
 from lockmyresource import User, no_user, Core, Database, Resource, LockRecord, github_url
-from util import traced
+from util import traced, memprofiled
 from tableformatter import JsonFormatter
 
 
@@ -69,6 +69,8 @@ class LockWidget(tk.Frame):
         for y in range(self.rows_count):
             for grid_cell in self.grid_slaves(row=1 + y):
                 grid_cell.grid_forget()
+                grid_cell.destroy()
+                del grid_cell
 
         for y, row in enumerate(locks):
             y += 1
@@ -140,6 +142,7 @@ class Application(tk.Frame):
 
         self.refresh_command(self.core.database.info())
 
+    @memprofiled
     def refresh_command(self, message: Optional[str] = "List updated"):
         self.locks_widget.update(self.core.list())
         if message is not None:
@@ -194,7 +197,7 @@ class ApplicationRefresher:
         self.app = app
         self.root = root
         self.refresh_interval_millis = refresh_interval_millis
-    
+
     def refresh(self):
         self.app.refresh_command(message=None)
         self.root.after(self.refresh_interval_millis, self.refresh)

@@ -19,14 +19,3 @@ def traced(func):
         return result
 
     return inner
-
-
-def memprofiled2(func):
-    if profile is None:
-        return func
-
-    # def inner(*args, **kwargs):
-    #     result = func(*args, **kwargs)
-    #     return result    
-
-    return profile(func)
