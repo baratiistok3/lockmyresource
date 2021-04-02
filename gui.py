@@ -144,9 +144,29 @@ class Application(tk.Frame):
 
     @memprofiled
     def refresh_command(self, message: Optional[str] = "List updated"):
+        with self.attempt("Failed to load data"):
         self.locks_widget.update(self.core.list())
         if message is not None:
             self.show_message(message)
+
+    def attempt(self, failure_message: str):
+        def on_error():
+            self.show_message(failure_message)
+
+        class ContextManager:
+            def __init__(self, on_error: callable):
+                self.on_error = on_error
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, type, value, traceback):
+                if type is not None:
+                    logging.exception(failure_message)
+                    self.on_error()
+                return True
+        
+        return ContextManager(on_error)
 
     def show_message(self, message):
         if isinstance(message, list):
