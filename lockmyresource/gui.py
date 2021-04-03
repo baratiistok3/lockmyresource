@@ -15,7 +15,7 @@ from tkinter import filedialog
 from typing import List, Dict, Optional
 
 from configfile import LockMyResourceConfigFile
-from lockmyresource import User, no_user, Core, Database, Resource, LockRecord, github_url
+from core import User, no_user, Core, Database, Resource, LockRecord, github_url
 from util import traced, memprofiled
 from tableformatter import JsonFormatter
 
@@ -142,7 +142,7 @@ class Application(tk.Frame):
 
         self.refresh_command(self.core.database.info())
 
-    @memprofiled
+    #@memprofiled
     def refresh_command(self, message: Optional[str] = "List updated"):
         with self.attempt("Failed to load data"):
             self.locks_widget.update(self.core.list())

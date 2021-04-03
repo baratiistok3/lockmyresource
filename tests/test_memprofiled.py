@@ -22,15 +22,7 @@ def dummy_decorator(func):
     return func
 
 
-class MemprofiledTestCase(TestCase):
-    @patch("util.memprofiled", dummy_decorator)
-    def test_without_profiler(self):
-        @util.memprofiled
-        def call_target(a: int, b:int) -> int:
-            return a + b
-
-        self.assertEqual(5, call_target(2, 3))
-    
+class MemprofiledTestCase(TestCase):    
     @patch("util.memprofiled", profile_mock)
     def test_with_profiler(self):
         @util.memprofiled

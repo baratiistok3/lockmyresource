@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 from configfile import LockMyResourceConfigFile, LockMyResourceConfig
-from lockmyresource import Core, Resource, User, no_user, Database, InvalidUserError, github_url
+from core import Core, Resource, User, no_user, Database, InvalidUserError, github_url
 from tableformatter import TableFormatter
 
 

@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
+
 from util import traced
 from tableformatter import TableFormatter, rows_to_dicts
 
