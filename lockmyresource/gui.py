@@ -145,9 +145,9 @@ class Application(tk.Frame):
     @memprofiled
     def refresh_command(self, message: Optional[str] = "List updated"):
         with self.attempt("Failed to load data"):
-        self.locks_widget.update(self.core.list())
-        if message is not None:
-            self.show_message(message)
+            self.locks_widget.update(self.core.list())
+            if message is not None:
+                self.show_message(message)
 
     def attempt(self, failure_message: str):
         def on_error():
