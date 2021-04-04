@@ -28,3 +28,7 @@ RUN pip install -r requirements.txt --no-index --find-links /whl/
 COPY integration/*.py integration/*.sh ./
 RUN ./test.sh
 RUN python -m unittest discover .
+
+
+FROM base AS deployer
+CMD ["twine", "upload", "dist/lockmyresource*.whl"]
