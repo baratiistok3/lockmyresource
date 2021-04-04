@@ -4,7 +4,7 @@ from pathlib import Path
 
 __author__ = """Szabó Péter"""
 __email__ = '1254135+szabopeter@users.noreply.github.com'
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 
 lockmyresource_path = Path(__file__).parent
 assert isinstance(lockmyresource_path, Path)

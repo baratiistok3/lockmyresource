@@ -3,6 +3,7 @@
 """The setup script."""
 
 from setuptools import setup, find_packages
+from lockmyresource import __version__, __author__, __email__
 
 with open("README.md", encoding="utf-8") as readme_file:
     readme = readme_file.read()
@@ -17,8 +18,8 @@ setup_requirements = [ ]
 test_requirements = [ ]
 
 setup(
-    author="Szabó Péter",
-    author_email='1254135+szabopeter@users.noreply.github.com',
+    author=__author__,
+    author_email=__email__,
     python_requires='>=3.5',
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
@@ -50,6 +51,6 @@ setup(
     test_suite='tests',
     tests_require=test_requirements,
     url='https://github.com/szabopeter/lockmyresource',
-    version='0.1.0',
+    version=__version__,
     zip_safe=False,
 )
