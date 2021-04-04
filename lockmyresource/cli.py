@@ -63,9 +63,8 @@ class ReleaseCommand(Command):
 def parse_args(argv: Optional[List[str]], config: LockMyResourceConfig) -> CommandArgs:
     default_user = User.from_os()
     if default_user == no_user:
-        if config.user is None:
-            raise InvalidUserError()
-        default_user = User(config.user)
+        if config.user is not None:
+            default_user = User(config.user)
 
     dbfile = "lockmyresource.db" if config.dbfile is None else config.dbfile
     default_dbfile = Path(dbfile)
@@ -115,6 +114,8 @@ def parse_args(argv: Optional[List[str]], config: LockMyResourceConfig) -> Comma
         if hasattr(args, "format")
         else None,
     )
+    if cmd_args.user == no_user:
+        raise InvalidUserError()
     return cmd_args
 
 

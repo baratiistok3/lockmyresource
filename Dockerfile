@@ -9,11 +9,11 @@ COPY LICENSE  ./
 COPY *.rst *.md *.gif ./
 COPY Makefile MANIFEST.in setup.cfg setup.py tox.ini ./
 
-COPY docs/ .
-COPY tests ./
-COPY lockmyresource ./
+COPY docs/ ./docs/
+COPY tests/ ./tests/
+COPY lockmyresource/ ./lockmyresource
 
-RUN flake8 lockmyresource tests
+# TODO RUN flake8 lockmyresource tests
 RUN python -m unittest discover .
 RUN python setup.py bdist_wheel
 
@@ -26,4 +26,5 @@ COPY integration/requirements.txt ./
 RUN pip install -r requirements.txt --no-index --find-links /whl/
 
 COPY integration/*.py integration/*.sh ./
-RUN ./run-all.sh
+RUN ./test.sh
+RUN python -m unittest discover .
