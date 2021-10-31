@@ -14,6 +14,7 @@ from tkinter import simpledialog
 from tkinter import filedialog
 from typing import List, Dict, Optional
 
+import metainfo
 from configfile import LockMyResourceConfigFile
 from core import User, no_user, Core, Database, Resource, LockRecord, github_url
 from util import traced, memprofiled
@@ -261,7 +262,7 @@ def main():
     root = tk.Tk()
     user = init_user(root)
     logging.info("User: %s", user)
-    root.title("Lock My Resource")
+    root.title(f"Lock My Resource {metainfo.version}")
     dbfile = init_db("lockmyresource.db")
     core = Core(user, Database.open(dbfile), JsonFormatter())
     app = Application(root, core)

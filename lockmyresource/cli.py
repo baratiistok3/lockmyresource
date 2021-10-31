@@ -9,6 +9,8 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
+
+import metainfo
 from configfile import LockMyResourceConfigFile, LockMyResourceConfig
 from core import Core, Resource, User, no_user, Database, InvalidUserError, github_url
 from tableformatter import TableFormatter
@@ -82,6 +84,7 @@ def parse_args(argv: Optional[List[str]], config: LockMyResourceConfig) -> Comma
         "--user", default=default_user, type=User, help=argparse.SUPPRESS
     )
     parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--version", action="version", version=f"{metainfo.version}")
 
     subparsers = parser.add_subparsers(help="Commands", required=True, dest="command")
     parser_list = subparsers.add_parser("list", help="List resources")

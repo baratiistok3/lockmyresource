@@ -3,3 +3,6 @@ __pycache__
 *.db
 /venv
 /local
+/build
+/dist
+/lockmyresource.egg-info
