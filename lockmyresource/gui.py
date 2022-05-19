@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from tkinter import simpledialog
 from tkinter import filedialog
-from typing import List, Dict, Optional
+from typing import Callable, List, Dict, Optional, Set
 
 import metainfo
 from configfile import LockMyResourceConfigFile
@@ -24,8 +24,22 @@ from tableformatter import JsonFormatter
 github_logo_filename = "github25.png"
 
 
+class Subscriptions:
+    def __init__(self):
+        self.subscribed_to_names: Set[str] = set()
+
+    def is_subscribed_to(self, lock_record: LockRecord) -> bool:
+        return lock_record.resource.name in self.subscribed_to_names
+
+    def subscribe(self, lock_record: LockRecord):
+        self.subscribed_to_names.add(lock_record.resource.name)
+
+    def unsubscribe(self, lock_record: LockRecord):
+        self.subscribed_to_names.remove(lock_record.resource.name)
+
+
 class LockRecordLockCommand:
-    def __init__(self, lock_record: LockRecord, refresh_command, get_lock_comment):
+    def __init__(self, lock_record: LockRecord, refresh_command: Callable[[str], None], get_lock_comment):
         self.lock_record = lock_record
         self.text = "Lock"
         self.refresh_command = refresh_command
@@ -40,7 +54,7 @@ class LockRecordLockCommand:
 
 
 class LockRecordReleaseCommand:
-    def __init__(self, lock_record: LockRecord, refresh_command):
+    def __init__(self, lock_record: LockRecord, refresh_command: Callable[[str], None]):
         self.lock_record = lock_record
         self.text = "Release"
         self.refresh_command = refresh_command
@@ -49,6 +63,24 @@ class LockRecordReleaseCommand:
         success = self.lock_record.release()
         resource = self.lock_record.resource.name
         message = f"Lock released on {resource}" if success else f"Couldn't release {resource}"
+        self.refresh_command(message)
+
+
+class LockRecordSubscriptionCommand:
+    def __init__(self, lock_record: LockRecord, refresh_command: Callable[[str], None], subscriptions: Subscriptions) -> None:
+        self.lock_record = lock_record
+        self.subscriptions = subscriptions
+        self.text = "Unsubscribe" if subscriptions.is_subscribed_to(lock_record) else "Subscribe"
+        self.refresh_command = refresh_command
+    
+    def execute(self):
+        resource = self.lock_record.resource.name
+        if self.subscriptions.is_subscribed_to(self.lock_record):
+            self.subscriptions.unsubscribe(self.lock_record)
+            message = f"Unsubscribed from {resource}"
+        else:
+            self.subscriptions.subscribe(self.lock_record)
+            message = f"Subscribed to {resource}, you'll be notified when it gets free"
         self.refresh_command(message)
 
 
@@ -65,6 +97,7 @@ class LockWidget(tk.Frame):
         for x, column_head in enumerate(column_heads):
             head = tk.Label(self, text=column_head)
             head.grid(row=0, column=x, sticky="NEWS")
+        self.subscriptions = Subscriptions()
 
     def update(self, locks: List[LockRecord]):
         for y in range(self.rows_count):
@@ -85,6 +118,8 @@ class LockWidget(tk.Frame):
                 command = LockRecordReleaseCommand(row, self.refresh_command)
             elif row.user == no_user:
                 command = LockRecordLockCommand(row, self.refresh_command, self.get_lock_comment)
+            else:
+                command = LockRecordSubscriptionCommand(row, self.refresh_command, self.subscriptions)
             
             if command is not None:
                 self.set_cell(4, y, tk.Button(self, text=command.text, command=command.execute))
