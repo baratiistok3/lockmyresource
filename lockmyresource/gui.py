@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from tkinter import simpledialog
 from tkinter import filedialog
-from typing import List, Dict, Optional
+from typing import Callable, List, Dict, Optional, Set
 
 import metainfo
 from configfile import LockMyResourceConfigFile
@@ -24,8 +24,23 @@ from tableformatter import JsonFormatter
 github_logo_filename = "github25.png"
 
 
+class Subscriptions:
+    def __init__(self):
+        self.subscribed_to_names: Set[str] = set()
+
+    def is_subscribed_to(self, lock_record: LockRecord) -> bool:
+        return lock_record.resource.name in self.subscribed_to_names
+
+    def subscribe(self, lock_record: LockRecord):
+        self.subscribed_to_names.add(lock_record.resource.name)
+
+    def unsubscribe(self, lock_record: LockRecord):
+        if lock_record.resource.name in self.subscribed_to_names:
+            self.subscribed_to_names.remove(lock_record.resource.name)
+
+
 class LockRecordLockCommand:
-    def __init__(self, lock_record: LockRecord, refresh_command, get_lock_comment):
+    def __init__(self, lock_record: LockRecord, refresh_command: Callable[[str], None], get_lock_comment):
         self.lock_record = lock_record
         self.text = "Lock"
         self.refresh_command = refresh_command
@@ -40,7 +55,7 @@ class LockRecordLockCommand:
 
 
 class LockRecordReleaseCommand:
-    def __init__(self, lock_record: LockRecord, refresh_command):
+    def __init__(self, lock_record: LockRecord, refresh_command: Callable[[str], None]):
         self.lock_record = lock_record
         self.text = "Release"
         self.refresh_command = refresh_command
@@ -52,19 +67,38 @@ class LockRecordReleaseCommand:
         self.refresh_command(message)
 
 
+class LockRecordSubscriptionCommand:
+    def __init__(self, lock_record: LockRecord, refresh_command: Callable[[str], None], subscriptions: Subscriptions) -> None:
+        self.lock_record = lock_record
+        self.subscriptions = subscriptions
+        self.text = "Unsubscribe" if subscriptions.is_subscribed_to(lock_record) else "Subscribe"
+        self.refresh_command = refresh_command
+    
+    def execute(self):
+        resource = self.lock_record.resource.name
+        if self.subscriptions.is_subscribed_to(self.lock_record):
+            self.subscriptions.unsubscribe(self.lock_record)
+            message = f"Unsubscribed from {resource}"
+        else:
+            self.subscriptions.subscribe(self.lock_record)
+            message = f"Subscribed to {resource}, you'll be notified when it gets free"
+        self.refresh_command(message)
+
+
 class LockWidget(tk.Frame):
-    def __init__(self, master, core: Core, refresh_command, get_lock_comment):
+    def __init__(self, master, core: Core, refresh_command, get_lock_comment, restore_window: Callable[[], None]):
         super().__init__(master)
         self.core = core
         self.refresh_command = refresh_command
         self.get_lock_comment = get_lock_comment
-        self.my_user = core.user.login
+        self.restore_window = restore_window
         self.cells = {}
         self.rows_count = 0
         column_heads = ["Resource", "User", "Locked at", "Comment", "Command"]
         for x, column_head in enumerate(column_heads):
             head = tk.Label(self, text=column_head)
             head.grid(row=0, column=x, sticky="NEWS")
+        self.subscriptions = Subscriptions()
 
     def update(self, locks: List[LockRecord]):
         for y in range(self.rows_count):
@@ -83,25 +117,37 @@ class LockWidget(tk.Frame):
             command = None
             if row.user == self.core.user:
                 command = LockRecordReleaseCommand(row, self.refresh_command)
+                self.subscriptions.unsubscribe(row)
             elif row.user == no_user:
                 command = LockRecordLockCommand(row, self.refresh_command, self.get_lock_comment)
-            
+                self.check_subscriptions(row)
+            else:
+                command = LockRecordSubscriptionCommand(row, self.refresh_command, self.subscriptions)
+
             if command is not None:
                 self.set_cell(4, y, tk.Button(self, text=command.text, command=command.execute))
 
         self.rows_count = len(locks)
+
+    def check_subscriptions(self, lock_record: LockRecord):
+        if not self.subscriptions.is_subscribed_to(lock_record):
+            return
+
+        self.subscriptions.unsubscribe(lock_record)
+        self.refresh_command(f"{lock_record.resource.name} is available, lock it while you can!")
+        self.restore_window()
 
     def set_cell(self, x: int, y: int, cell: tk.BaseWidget):
         cell.grid(row=y, column=x, sticky="NEWS")
 
 
 class Application(tk.Frame):
-    def __init__(self, master, core: Core):
+    def __init__(self, master: tk.Tk, core: Core):
         super().__init__(master)
         self.core = core
         self.pack()
 
-        self.locks_widget = LockWidget(self, self.core, self.refresh_command, self.get_lock_comment)
+        self.locks_widget = LockWidget(self, self.core, self.refresh_command, self.get_lock_comment, self.restore_window)
         self.locks_widget.pack(side=tk.TOP)
 
         self.text_panel = tk.Frame(self)
@@ -143,6 +189,14 @@ class Application(tk.Frame):
 
         self.refresh_command(self.core.database.info())
 
+    def restore_window(self):
+        self.master.deiconify()
+        self.master.attributes('-topmost', 1)
+        self.master.lift()
+        self.master.focus()
+        self.master.focus_force()
+        self.master.attributes('-topmost', 0)
+
     #@memprofiled
     def refresh_command(self, message: Optional[str] = "List updated"):
         with self.attempt("Failed to load data"):
@@ -181,7 +235,7 @@ class Application(tk.Frame):
         self.status.configure(state=tk.NORMAL)
         self.status.delete("1.0", tk.END)
         self.status.insert(tk.END, message)
-        self.status.configure(state = tk.DISABLED)
+        self.status.configure(state=tk.DISABLED)
 
     def get_lock_comment(self):
         return self.lock_comment.get("1.0", tk.END).strip()
@@ -228,7 +282,7 @@ def with_time(text: str) -> str:
     import datetime
     now = datetime.datetime.now().strftime("%H:%M:%S")
     return f"{now} {text}"
-    
+
 
 @traced
 def init_user(root) -> User:
