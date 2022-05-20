@@ -68,18 +68,19 @@ class ReleaseCommand(Command):
 
 class SubscribeCommand(Command):
     def execute(self, core: Core, cmd_args: CommandArgs) -> int:
-        while self.is_locked(core, cmd_args.resource):
+        while self.is_locked(core, cmd_args.resource, cmd_args.user):
             time.sleep(cmd_args.interval)
         if cmd_args.shell_command:
             os.system(cmd_args.shell_command)
 
-    def is_locked(self, core: Core, resource: Resource) -> bool:
+    def is_locked(self, core: Core, resource: Resource, current_user: User) -> bool:
         lock_records = core.list()
         for lock_record in lock_records:
             if lock_record.resource != resource:
                 continue
             
-            return lock_record.user != no_user
+            locking_user = lock_record.user
+            return locking_user != no_user and locking_user != current_user
 
 
 def parse_args(argv: Optional[List[str]], config: LockMyResourceConfig) -> CommandArgs:
