@@ -1,7 +1,7 @@
 import datetime
 import logging
-import os
 import sqlite3
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
@@ -9,6 +9,7 @@ from typing import Dict, List, Optional
 
 from util import traced
 from tableformatter import TableFormatter, rows_to_dicts
+from userinfo import UserInfo
 
 
 github_url = "https://github.com/szabopeter/lockmyresource"
@@ -39,9 +40,12 @@ class User:
     @staticmethod
     def from_os() -> "User":
         try:
-            return User(os.getlogin())
+            username = UserInfo.get_user_name()
+            return User(username)
         except OSError:
             return no_user
+
+
 
 
 no_user = User(None)
