@@ -64,7 +64,7 @@ class ConnectionContextManager:
             self.is_my_connection = True
         connection.row_factory = sqlite3.Row
         self.connection = connection
-    
+
     def __enter__(self) -> "ConnectionContextManager":
         return self
 
@@ -83,7 +83,7 @@ class IDatabase(ABC):
 
     def get_dbdir(self) -> str:
         return str(self.dbfile.parent)
-    
+
     def get_dbfile(self) -> str:
         return str(self.dbfile.name)
 
@@ -299,14 +299,14 @@ class Core:
     @traced
     def list_str(self) -> str:
         return self.table_formatter.to_string(self.database.list())
-    
+
     @traced
     def list_raw(self) -> List[Dict]:
         return rows_to_dicts(self.database.list())
 
     @traced
     def list(self) -> List[LockRecord]:
-        return [LockRecord(self, Resource(row["resource"]), User(row["user"]), row["locked_at"], row["comment"]) 
+        return [LockRecord(self, Resource(row["resource"]), User(row["user"]), row["locked_at"], row["comment"])
                 for row in self.list_raw()]
 
     @traced
