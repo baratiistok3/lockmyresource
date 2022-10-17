@@ -36,7 +36,8 @@ class Resource:
 
 @dataclass
 class User:
-    login: str
+    login: Optional[str]
+
     @staticmethod
     def from_os() -> "User":
         try:
@@ -44,8 +45,6 @@ class User:
             return User(username)
         except OSError:
             return no_user
-
-
 
 
 no_user = User(None)
