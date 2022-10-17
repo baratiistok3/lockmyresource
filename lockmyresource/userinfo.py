@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 
@@ -9,7 +10,10 @@ class UserInfo:
     @staticmethod
     def get_user_name():
         if sys.platform.startswith("win"):
-            return UserInfo.get_display_name()
+            username = UserInfo.get_display_name()
+            if username:
+                return username
+            logging.warning("Got an empty username from GetUserNameExW! %s", repr(username))
         return os.getlogin()
 
     if sys.platform.startswith("win"):
