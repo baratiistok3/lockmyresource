@@ -9,7 +9,7 @@ from typing import Dict, List, Optional
 
 from util import traced
 from tableformatter import TableFormatter, rows_to_dicts
-from userinfo import UserInfo
+from userinfo import get_userinfo
 
 
 github_url = "https://github.com/szabopeter/lockmyresource"
@@ -41,7 +41,7 @@ class User:
     @staticmethod
     def from_os() -> "User":
         try:
-            username = UserInfo.get_user_name()
+            username = get_userinfo().get_user_name()
             return User(username)
         except OSError:
             return no_user
