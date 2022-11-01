@@ -2,6 +2,7 @@
 
 
 import abc
+import json
 import logging
 import sys
 import sqlite3
@@ -12,8 +13,10 @@ from typing import List, Optional
 
 import metainfo
 from configfile import LockMyResourceConfigFile, LockMyResourceConfig
-from core import Core, Resource, User, no_user, Database, InvalidUserError, github_url
+from core import Core, Resource, User, no_user, Database, InvalidUserError, github_url, LockRecord
 from tableformatter import TableFormatter
+
+EXPORT_ENCODING = "utf-8"
 
 
 class Const:
@@ -24,6 +27,7 @@ class Const:
 @dataclass
 class CommandArgs:
     dbfile: Path
+    dbexportfile: Path
     command: "Command"
     resource: Resource
     user: User
@@ -62,6 +66,23 @@ class ReleaseCommand(Command):
         return Const.FAILED
 
 
+class ExportCommand(Command):
+    def execute(self, core: Core, cmd_args: CommandArgs) -> int:
+        rows: List[LockRecord] = core.list()
+        json_content = {
+            "version": "2022-10-31",
+            "rows": [{
+                "resource": row.resource.name,
+                "user": row.user.login,
+                "locked_at": row.locked_at,
+                "comment": row.comment,
+            } for row in rows]
+        }
+        json_text = json.dumps(json_content, indent=2)
+        cmd_args.dbexportfile.write_text(json_text, encoding=EXPORT_ENCODING)
+        return Const.OK
+
+
 def parse_args(argv: Optional[List[str]], config: LockMyResourceConfig) -> CommandArgs:
     default_user = User.from_os()
     if default_user == no_user:
@@ -70,6 +91,8 @@ def parse_args(argv: Optional[List[str]], config: LockMyResourceConfig) -> Comma
 
     dbfile = "lockmyresource.db" if config.dbfile is None else config.dbfile
     default_dbfile = Path(dbfile)
+    dbexportfile = "lockmyresource-export.json" if config.dbexportfile is None else config.dbexportfile
+    default_dbexportfile = Path(dbexportfile)
 
     parser = argparse.ArgumentParser(
         description="Coordinate locking resources for humans and machines using a simple sqlite file",
@@ -105,12 +128,22 @@ def parse_args(argv: Optional[List[str]], config: LockMyResourceConfig) -> Comma
     parser_release.set_defaults(command=ReleaseCommand())
     parser_release.add_argument("resource", type=Resource)
 
+    parser_export = subparsers.add_parser("export", help="Export DB")
+    parser_export.set_defaults(command=ExportCommand())
+    parser_export.add_argument(
+        "--dbexportfile",
+        default=default_dbexportfile,
+        type=Path,
+        help="JSON export will be written to this file",
+    )
+
     args = parser.parse_args() if argv is None else parser.parse_args(argv)
     cmd_args = CommandArgs(
         debug=args.debug,
         dbfile=args.dbfile,
         user=args.user,
         command=args.command,
+        dbexportfile=args.dbexportfile if hasattr(args, "dbexportfile") else None,
         resource=args.resource if hasattr(args, "resource") else None,
         comment=args.comment if hasattr(args, "comment") else None,
         table_formatter=TableFormatter.create(args.format)
