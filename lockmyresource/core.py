@@ -95,6 +95,14 @@ class IDatabase(ABC):
     def info(self) -> str:
         pass
 
+    @abstractmethod
+    def lock(self, resource: Resource, user: User, timestamp: datetime.datetime, comment: str):
+        pass
+
+    @abstractmethod
+    def release(self, resource: Resource, user: User) -> bool:
+        pass
+
 
 class NoDatabase(IDatabase):
     def __init__(self, dbfile: Path):
@@ -106,6 +114,12 @@ class NoDatabase(IDatabase):
 
     def info(self) -> str:
         return f"Could not open {self.dbfile}"
+
+    def lock(self, resource: Resource, user: User, timestamp: datetime.datetime, comment: str):
+        pass
+
+    def release(self, resource: Resource, user: User) -> bool:
+        pass
 
 
 class Database(IDatabase):
@@ -257,7 +271,7 @@ class Database(IDatabase):
             conn.connection.commit()
             return True
 
-    def list(self):
+    def list(self) -> List:
         with self.get_connection() as conn:
             cursor = conn.execute_sql(
                 f"SELECT resource, user, locked_at, comment FROM {Const.LOCKS_TABLE};"

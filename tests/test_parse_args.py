@@ -5,7 +5,7 @@ from cli import parse_args, ListCommand, LockCommand, ReleaseCommand
 from configfile import LockMyResourceConfig
 
 
-config = LockMyResourceConfig("dummy", ":memory:")
+config = LockMyResourceConfig("dummy", ":memory:", "dummy")
 
 
 class ParseTestCase(TestCase):
