@@ -6,6 +6,7 @@ import util
 class ProfileMock:
     def __init__(self):
         self.results = []
+
     def profile(self, func):
         def inner(*args, **kwargs):
             result = func(*args, **kwargs)
@@ -22,11 +23,11 @@ def dummy_decorator(func):
     return func
 
 
-class MemprofiledTestCase(TestCase):    
+class MemprofiledTestCase(TestCase):
     @patch("util.memprofiled", profile_mock)
     def test_with_profiler(self):
         @util.memprofiled
-        def call_target(a: int, b:int) -> int:
+        def call_target(a: int, b: int) -> int:
             return a + b
 
         self.assertEqual(5, call_target(2, 3))

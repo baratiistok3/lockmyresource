@@ -4,9 +4,11 @@
 import abc
 import json
 import logging
+import os
 import sys
 import sqlite3
 import argparse
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
@@ -33,6 +35,8 @@ class CommandArgs:
     user: User
     debug: bool
     comment: str
+    shell_command: str
+    interval: float
     table_formatter: TableFormatter
 
 
@@ -66,6 +70,23 @@ class ReleaseCommand(Command):
         return Const.FAILED
 
 
+class SubscribeCommand(Command):
+    def execute(self, core: Core, cmd_args: CommandArgs) -> int:
+        while self.is_locked(core, cmd_args.resource, cmd_args.user):
+            time.sleep(cmd_args.interval)
+        if cmd_args.shell_command:
+            os.system(cmd_args.shell_command)
+
+    def is_locked(self, core: Core, resource: Resource, current_user: User) -> bool:
+        lock_records = core.list()
+        for lock_record in lock_records:
+            if lock_record.resource != resource:
+                continue
+
+            locking_user = lock_record.user
+            return locking_user != no_user and locking_user != current_user
+
+
 class ExportCommand(Command):
     def execute(self, core: Core, cmd_args: CommandArgs) -> int:
         rows: List[LockRecord] = core.list()
@@ -93,6 +114,7 @@ def parse_args(argv: Optional[List[str]], config: LockMyResourceConfig) -> Comma
     default_dbfile = Path(dbfile)
     dbexportfile = "lockmyresource-export.json" if config.dbexportfile is None else config.dbexportfile
     default_dbexportfile = Path(dbexportfile)
+    default_interval = 2.2
 
     parser = argparse.ArgumentParser(
         description="Coordinate locking resources for humans and machines using a simple sqlite file",
@@ -128,6 +150,17 @@ def parse_args(argv: Optional[List[str]], config: LockMyResourceConfig) -> Comma
     parser_release.set_defaults(command=ReleaseCommand())
     parser_release.add_argument("resource", type=Resource)
 
+    parser_subscribe = subparsers.add_parser(
+        "subscribe",
+        help="Wait for a resource",
+        description="Poll until the specified resource is available, and optionally, execute a shell-command")
+    parser_subscribe.set_defaults(command=SubscribeCommand())
+    parser_subscribe.add_argument("resource", type=Resource)
+    parser_subscribe.add_argument("shell-command", type=str, default="", nargs="?",
+                                  help="optional shell command to execute if/when the resource is availabe")
+    parser_subscribe.add_argument("--interval", type=float, default=default_interval,
+                                  help=f"polling interval in seconds (default: {default_interval})")
+
     parser_export = subparsers.add_parser("export", help="Export DB")
     parser_export.set_defaults(command=ExportCommand())
     parser_export.add_argument(
@@ -146,6 +179,8 @@ def parse_args(argv: Optional[List[str]], config: LockMyResourceConfig) -> Comma
         dbexportfile=args.dbexportfile if hasattr(args, "dbexportfile") else None,
         resource=args.resource if hasattr(args, "resource") else None,
         comment=args.comment if hasattr(args, "comment") else None,
+        shell_command=getattr(args, "shell-command") if hasattr(args, "shell-command") else None,
+        interval=args.interval if hasattr(args, "interval") else None,
         table_formatter=TableFormatter.create(args.format)
         if hasattr(args, "format")
         else None,
